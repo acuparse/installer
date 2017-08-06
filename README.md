@@ -1,11 +1,13 @@
-# Acuparse Installer - 1.0.0
-## Script to install Acuparse on a fresh Debian/Ubuntu server.
+# Acuparse Installer
+## Script to install Acuparse on a clean Debian based server.
+> **Info:** Installer currently supports Debian Stretch(9) and Ubuntu 16.04 LTS.
 
 # Usage:
 **Requires LAMP stack. Some PHP, Apache, and GNU/Linux experience recommended.**
 
 ## Quick Install:
-Install your base Debian or Ubuntu operating system and update. Then download and run the installer.
+Install your base operating system and update. Then download and run the installer.
+
 ``` wget https://raw.githubusercontent.com/acuparse/installer/master/install.sh && sudo sh install.sh ```
 
 # Licencing:
