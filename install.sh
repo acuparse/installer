@@ -33,7 +33,7 @@ fi
 cd ~
 printf "Acuparse Installation Script\n\n"
 
-printf "This script is designed to be run on a freshly installed Debian/Ubuntu System\n\n"
+printf "This script is designed to be run on a freshly installed Debian Stretch or Ubuntu 16.04 LTS System\n\n"
 
 printf "First we need some database credentials ...\n"
 
@@ -57,10 +57,8 @@ OS=$(cat /etc/*release | grep '^ID=' | awk -F=  '{ print $2 }')
 echo "mysql-server mysql-server/root_password password $ROOTPW" | sudo debconf-set-selections
 echo "mysql-server mysql-server/root_password_again password $ROOTPW" | sudo debconf-set-selections
 
-if [ "$OS" = "debian" ]; then
-        apt-get update && apt-get install git ntp imagemagick apache2 mysql-server php5 libapache2-mod-php5 php5-mysql php5-gd php5-curl php5-cli -y
-elif [ "$OS" = "ubuntu" ]; then
-        apt-get update && apt-get install git ntp imagemagick apache2 mysql-server php7.0 libapache2-mod-php7.0 php7.0-mysql php7.0-gd php7.0-curl php7.0-json php7.0-cli -y
+if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ]; then
+        apt-get update && apt-get install git ntp imagemagick exim4 apache2 mysql-server php7.0 libapache2-mod-php7.0 php7.0-mysql php7.0-gd php7.0-curl php7.0-json php7.0-cli -y
 else
         printf "NO Debian Based OS!"
 		exit
