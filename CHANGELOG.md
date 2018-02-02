@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2018-01-31
+### Added
+- SSL & Let's Encrypt Support
+
 ## [1.0.1] - 2017-08-08
 ### Changed
 - Removed Debian Jessie(8) support and replaced with Stretch(9).
