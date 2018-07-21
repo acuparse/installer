@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2018-07-21
+### Changed
+- Added a2dismods for PHP migration.
+- Formatting changes.
+
 ## [1.2.0] - 2018-07-06
 ### Changed
 - Removed Ubuntu 16.04 LTS support and replaced with 18.04 LTS.

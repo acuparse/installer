@@ -33,16 +33,28 @@ fi
 
 printf "Upgrading PHP to 7.2\n\n"
 
-printf "Installation Ready!\n\nThis process will remove PHP 7.0 then reinstall PHP 7.2./nThis is your last chance to exit./n/n"
+printf "Installation Ready!\n\nThis process will attempt to remove PHP 5, 7.0, and 7.1 then install PHP 7.2./nThis is your last chance to exit./n/n"
 	
 printf "When ready, Press [ENTER] to continue\n"
 read READY
 
-OS=$(cat /etc/*release | grep '^ID=' | awk -F=  '{ print $2 }')
+printf "Removing PHP 5\n\n"
+sleep 1
+apt-get remove php5 libapache2-mod-php5 php5-mysql php5-gd php5-curl php5-json php5-cli php5-common -y
+a2dismod php5
+
 printf "Removing PHP 7.0\n\n"
 sleep 1
-apt-get remove php7.0 libapache2-mod-php7.0 php7.0-mysql php7.0-gd php7.0-curl php7.0-json php7.0-cli -y
+apt-get remove php7.0 libapache2-mod-php7.0 php7.0-mysql php7.0-gd php7.0-curl php7.0-json php7.0-cli php7.0-common -y
+a2dismod php7.0
 
+printf "Removing PHP 7.1\n\n"
+sleep 1
+apt-get remove php7.1 libapache2-mod-php7.1 php7.1-mysql php7.1-gd php7.1-curl php7.1-json php7.1-cli php7.1-common -y
+a2dismod php7.1
+
+printf "\nInstalling PHP 7.2\n\n"
+OS=$(cat /etc/*release | grep '^ID=' | awk -F=  '{ print $2 }')
 if [ "$OS" = "debian" ] || [ "$OS" = "raspbian" ]; then
 	printf "DEBIAN DETECTED!\nAdding DEB.SURY.ORG repository.\n\n"
 	apt-get install ca-certificates apt-transport-https -y
@@ -50,14 +62,18 @@ if [ "$OS" = "debian" ] || [ "$OS" = "raspbian" ]; then
 	echo "deb https://packages.sury.org/php/ stretch main" | tee /etc/apt/sources.list.d/php.list
 fi
 apt-get update
-printf "\nInstalling PHP 7.2\n\n"
 sleep 1
 apt-get install php7.2 libapache2-mod-php7.2 php7.2-mysql php7.2-gd php7.2-curl php7.2-json php7.2-cli php7.2-common -y
+a2enmod php7.2
 
 printf "\nCleanup APT\n\n"
 sleep 1
 apt purge
 apt clean
 apt autoremove -y
+
+printf "\nRestarting Apache\n\n"
+sleep 1
+systemctl restart apache2
 
 printf "\nDONE!\n"
