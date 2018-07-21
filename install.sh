@@ -24,38 +24,53 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 ##
-printf "Acuparse Installation Script v1.2.0\n\n"
 
+# Text Colours
+GREEN_TEXT='\033[0;32m'
+RED_TEXT='\033[0;31m'
+BLUE_TEXT='\033[1;34m'
+YELLOW_TEXT='\033[1;33m'
+PLAIN_TEXT='\033[0m'
+
+printf "\nAcuparse Installation Script v1.2.1\n\n"
+
+# Ensure Debian/Ubuntu/Rasberian
 OS=$(cat /etc/*release | grep '^ID=' | awk -F=  '{ print $2 }')
 if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 	cd ~
 	if [ `id -u` != "0" ]; then
-		printf "ERROR: Installer must be run as root!\n"
+		printf "${RED_TEXT}ERROR: Installer must be run as root!${PLAIN_TEXT}\n"
 		exit 1
 	fi
 
-	printf "Pre Install\n\n"
+	# Get variables and setup install
+	printf "${YELLOW_TEXT}Pre Install${PLAIN_TEXT}\n\n"
 	printf "Make a note of your Acuparse database password.\nYou will need it to complete your install!\n\n"
 	
-	printf "When ready, Press [ENTER] to continue\n"
+	printf "${RED_TEXT}When ready, Press [ENTER] to continue${PLAIN_TEXT}\n"
 	read READY
 	
+	# MySQL Root
 	printf "Enter MySQL ROOT password, followed by [ENTER]:\n"
 	stty -echo
 	read MYSQL_ROOT_PASSWORD
 	stty echo
 
+	# Acuparse DB
 	printf "Enter ACUPARSE database password, followed by [ENTER]:\n"
 	stty -echo
 	read ACUPARSE_DATABASE_PASSWORD
 	stty echo
 
+	# EXMIN
 	printf "Install Exim mail server?, y/N, followed by [ENTER]:\n"
 	read EXIM_ENABLED
 	
+	# phpMyAdmin
 	printf "Install phpMyAdmin?, y/N, followed by [ENTER]:\n"
 	read PHPMYADMIN_ENABLED
 
+	# Let's Encrypt
 	printf "Configure SSL using Let's Encrypt?, y/N, followed by [ENTER]:\n"
 	read LE_SSL_ENABLED
 
@@ -87,12 +102,14 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 		fi
 	fi
 	
-	printf "\nInstallation Ready!\n\nThis process will install and configure packages.\nThis is your last chance to exit.\n\n"
+	# Begin Install
+	printf "\n${BLUE_TEXT}Installation Ready!${PLAIN_TEXT}\n\n"
+	printf "This process will install and configure packages.\nThis is your last chance to exit.\n\n"
 	
-	printf "When ready, Press [ENTER] to continue\n"
+	printf "${RED_TEXT}When ready, Press [ENTER] to continue${PLAIN_TEXT}\n"
 	read READY
 
-	printf "Installing Packages\n\n"
+	printf "${YELLOW_TEXT}Installing Packages${PLAIN_TEXT}\n\n"
 	sleep 1
 	echo "mysql-server mysql-server/root_password password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
 	echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
@@ -103,21 +120,24 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 		wget -q https://packages.sury.org/php/apt.gpg -O- | apt-key add -
 		echo "deb https://packages.sury.org/php/ stretch main" | tee /etc/apt/sources.list.d/php.list
 	fi
-
+	
+	# Core packages
 	apt-get update
 	apt-get upgrade -y
 	apt-get install git ntp imagemagick exim4 apache2 mysql-server php7.2 libapache2-mod-php7.2 php7.2-mysql php7.2-gd php7.2-curl php7.2-json php7.2-cli php7.2-common -y
 
+	# phpMyAdmin
 	if [ "$PHPMYADMIN_ENABLED" = "y" ] || [ "$PHPMYADMIN_ENABLED" = "Y" ]; then
-		printf "Installing phpMyAdmin\n"
+		printf "${YELLOW_TEXT}Installing phpMyAdmin${PLAIN_TEXT}\n"
 		echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
 		echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
 		echo "phpmyadmin phpmyadmin/mysql/app-pass password " | debconf-set-selections
 		apt-get install phpmyadmin -y
 	fi
 	
+	# EXIM
 	if [ "$EXIM_ENABLED" = "y" ] || [ "$EXIM_ENABLED" = "Y" ]; then
-		printf "Installing Exim mail server\n"
+		printf "${YELLOW_TEXT}Installing Exim mail server${PLAIN_TEXT}\n"
 		sleep 1
 		apt-get install exim4 -y
 		printf "Launch exim configuration\n"
@@ -125,7 +145,8 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 	fi
 	printf "END: Packages\n\n"
 
-	printf "Install Acuparse from git\n"
+	# Acuparse Source
+	printf "${YELLOW_TEXT}Install Acuparse from git${PLAIN_TEXT}\n"
 	sleep 1
 	git init /opt/acuparse
 	cd /opt/acuparse
@@ -135,7 +156,8 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 	chown -R www-data:www-data /opt/acuparse/src
 	printf "END: Acuparse\n\n"
 
-	printf "Configuring Apache\n"
+	# Apache Config
+	printf "${YELLOW_TEXT}Configuring Apache${PLAIN_TEXT}\n"
 	sleep 1
 	a2dissite 000-default.conf > /dev/null 2>&1
 	rm /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/default-ssl.conf
@@ -146,7 +168,7 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 	a2ensite acuparse.conf > /dev/null 2>&1
 	a2ensite acuparse-ssl.conf > /dev/null 2>&1
 	if [ "$LE_SSL_ENABLED" = "y" ] || [ "$LE_SSL_ENABLED" = "Y" ]; then
-		printf "Deploying Let's Encrypt Certificate\n"
+		printf "${YELLOW_TEXT}Deploying Let's Encrypt Certificate${PLAIN_TEXT}\n"
 		sleep 1
 		systemctl stop apache2.service
 		if [ "$OS" = "ubuntu" ]; then
@@ -168,29 +190,37 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 	systemctl restart apache2.service
 	printf "END: Apache Config\n\n"
 
-	printf "Creating Acuparse database\n"
+	# Database Config
+	printf "${YELLOW_TEXT}Creating Acuparse database${PLAIN_TEXT}\n"
 	sleep 1
 	mysql -uroot -p${MYSQL_ROOT_PASSWORD} -e "DELETE FROM mysql.user WHERE User='';DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');DROP DATABASE IF EXISTS test;DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';FLUSH PRIVILEGES;" > /dev/null 2>&1
 	mysql -uroot -p${MYSQL_ROOT_PASSWORD} -e "CREATE DATABASE acuparse; GRANT ALL PRIVILEGES ON acuparse.* TO acuparse@localhost IDENTIFIED BY '$ACUPARSE_DATABASE_PASSWORD'; GRANT SUPER, EVENT ON *.* TO acuparse@localhost" > /dev/null 2>&1
 
-	printf "Installing Cron\n"
+	# Crontab Config
+	printf "${YELLOW_TEXT}Installing Cron${PLAIN_TEXT}\n"
 	sleep 1
 	(crontab -l 2>/dev/null; echo "* * * * * php /opt/acuparse/cron/cron.php > /opt/acuparse/logs/cron.log 2>&1") | crontab -
 
-	printf "Running Cleanup\n"
+	# Installation Cleanup
+	printf "${YELLOW_TEXT}Running Cleanup${PLAIN_TEXT}\n"
 	apt-get autoremove -y
 	apt-get clean -y
 	apt-get purge -y
 	systemctl restart apache2.service
 	
-	printf "\nAcuparse Installation Complete!\n\n"
-	
+	# Install Complete
+	printf "\n${GREEN_TEXT}Acuparse Installation Complete!${PLAIN_TEXT}\n\n"	
+	printf "${RED_TEXT}Connect to your IP/Hostname with a browser to initilize the database and create an admin.${PLAIN_TEXT}\n\n"
+		
 	printf "Your system IP addresse(s):\n"
 	hostname -I
-	printf "\nYour system hostname(s):\n"
+	printf "\nYour system hostname(s):\n\n"
 	hostname -A
-	printf "\nConnect to your IP/Hostname with a browser to continue configuration.\n"
+	exit 1
+	
+# Not Debian/Ubuntu/Rasberian
 else
 	printf "ERROR: This script is designed to be run on a freshly installed Debian Stretch(9), Ubuntu 18.04 LTS, or Raspbian Stretch(9) based system\n"
+	exit 1
 fi
-exit
+exit 1
