@@ -32,7 +32,8 @@ BLUE_TEXT='\033[1;34m'
 YELLOW_TEXT='\033[1;33m'
 PLAIN_TEXT='\033[0m'
 
-printf "\nAcuparse Installation Script v1.2.1\n\n"
+printf "\nAcuparse Installation Script v1.2.2\n"
+printf "This script should only be run on a freshly installed Debian/Ububtu/Raspbian system!\n\n"
 
 # Ensure Debian/Ubuntu/Rasberian
 OS=$(cat /etc/*release | grep '^ID=' | awk -F=  '{ print $2 }')
@@ -44,20 +45,20 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 	fi
 
 	# Get variables and setup install
-	printf "${YELLOW_TEXT}Pre Install${PLAIN_TEXT}\n\n"
-	printf "Make a note of your Acuparse database password.\nYou will need it to complete your install!\n\n"
-	
+	printf "${GREEN_TEXT}####################\n# Pre-installation #\n####################${PLAIN_TEXT}\n\n"
+	printf "First, we'll configure your install:\n"
 	printf "${RED_TEXT}When ready, Press [ENTER] to continue${PLAIN_TEXT}\n"
 	read READY
 	
 	# MySQL Root
-	printf "Enter MySQL ROOT password, followed by [ENTER]:\n"
+	printf "Enter NEW MySQL ROOT password, followed by [ENTER]:\n"
 	stty -echo
 	read MYSQL_ROOT_PASSWORD
 	stty echo
 
 	# Acuparse DB
-	printf "Enter ACUPARSE database password, followed by [ENTER]:\n"
+	printf "Enter NEW Acuparse database password, followed by [ENTER]:\n"
+	printf "${BLUE_TEXT}Make a note of this password, you will need it to finish your install!${PLAIN_TEXT}\n\n"
 	stty -echo
 	read ACUPARSE_DATABASE_PASSWORD
 	stty echo
@@ -102,10 +103,16 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 		fi
 	fi
 	
-	# Begin Install
-	printf "\n${BLUE_TEXT}Installation Ready!${PLAIN_TEXT}\n\n"
-	printf "This process will install and configure packages.\nThis is your last chance to exit.\n\n"
+	# Timezone Select
+	printf "Configuring your system timezone.\n\n"
+	printf "When ready, Press [ENTER] to continue\n"
+	read READY
+	dpkg-reconfigure tzdata
+	systemctl restart rsyslog.service
 	
+	# Begin Install
+	printf "\n${GREEN_TEXT}#######################\n# Installation Ready! #\n#######################${PLAIN_TEXT}\n\n"
+	printf "This process will install and configure packages.\nThis is your last chance to exit.\n\n"
 	printf "${RED_TEXT}When ready, Press [ENTER] to continue${PLAIN_TEXT}\n"
 	read READY
 

@@ -8,9 +8,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.2] - 2018-08-08
+### Added
+- Check timezone before installing
+
 ## [1.2.1] - 2018-07-21
 ### Changed
-- Added a2dismods for PHP migration.
+- Added a2dismods for PHP 7.2 migration script.
 - Formatting changes.
 
 ## [1.2.0] - 2018-07-06
