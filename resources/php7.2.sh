@@ -33,24 +33,24 @@ fi
 
 printf "Upgrading PHP to 7.2\n\n"
 
-printf "Installation Ready!\n\nThis process will attempt to remove PHP 5, 7.0, and 7.1 then install PHP 7.2./nThis is your last chance to exit./n/n"
+printf "Installation Ready!\n\nThis process will attempt to remove PHP 5, 7.0, and 7.1 then install PHP 7.2.\nThis is your last chance to exit.\n\n"
 	
 printf "When ready, Press [ENTER] to continue\n"
 read READY
 
 printf "Removing PHP 5\n\n"
 sleep 1
-apt-get remove php5 libapache2-mod-php5 php5-mysql php5-gd php5-curl php5-json php5-cli php5-common -y
+apt-get remove php5* -y
 a2dismod php5
 
 printf "Removing PHP 7.0\n\n"
 sleep 1
-apt-get remove php7.0 libapache2-mod-php7.0 php7.0-mysql php7.0-gd php7.0-curl php7.0-json php7.0-cli php7.0-common -y
+apt-get remove php7.0* -y
 a2dismod php7.0
 
 printf "Removing PHP 7.1\n\n"
 sleep 1
-apt-get remove php7.1 libapache2-mod-php7.1 php7.1-mysql php7.1-gd php7.1-curl php7.1-json php7.1-cli php7.1-common -y
+apt-get remove php7.1* -y
 a2dismod php7.1
 
 printf "\nInstalling PHP 7.2\n\n"
