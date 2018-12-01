@@ -8,9 +8,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.3] - 2018-01-01
+### Fixed
+- Newlines and PHP.
+- Restart DB after creation.
+
 ## [1.2.2] - 2018-08-08
 ### Added
-- Check timezone before installing
+- Check timezone before installing.
 
 ## [1.2.1] - 2018-07-21
 ### Changed
