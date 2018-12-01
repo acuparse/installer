@@ -201,7 +201,7 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 	printf "${YELLOW_TEXT}Creating Acuparse database${PLAIN_TEXT}\n"
 	sleep 1
 	mysql -uroot -p${MYSQL_ROOT_PASSWORD} -e "DELETE FROM mysql.user WHERE User='';DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');DROP DATABASE IF EXISTS test;DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';FLUSH PRIVILEGES;" > /dev/null 2>&1
-	mysql -uroot -p${MYSQL_ROOT_PASSWORD} -e "CREATE DATABASE acuparse; GRANT ALL PRIVILEGES ON acuparse.* TO acuparse@localhost IDENTIFIED BY '$ACUPARSE_DATABASE_PASSWORD'; GRANT SUPER, EVENT ON *.* TO acuparse@localhost" > /dev/null 2>&1
+	mysql -uroot -p${MYSQL_ROOT_PASSWORD} -e "CREATE DATABASE acuparse; GRANT ALL PRIVILEGES ON acuparse.* TO acuparse@localhost IDENTIFIED BY '$ACUPARSE_DATABASE_PASSWORD'; GRANT SUPER, EVENT ON *.* TO acuparse@localhost; FLUSH PRIVILEGES;" > /dev/null 2>&1
 
 	# Crontab Config
 	printf "${YELLOW_TEXT}Installing Cron${PLAIN_TEXT}\n"
@@ -213,6 +213,7 @@ if [ "$OS" = "debian" ] || [ "$OS" = "ubuntu" ] || [ "$OS" = "raspbian" ]; then
 	apt-get autoremove -y
 	apt-get clean -y
 	apt-get purge -y
+	systemctl restart mysql.service
 	systemctl restart apache2.service
 	
 	# Install Complete
