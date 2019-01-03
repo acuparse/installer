@@ -8,7 +8,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-## [1.2.3] - 2018-01-01
+## [1.2.4] - 2019-01-02
+### Changed
+- Update Copyright.
+
+## [1.2.3] - 2018-12-01
 ### Fixed
 - Newlines and PHP.
 - Restart DB after creation.

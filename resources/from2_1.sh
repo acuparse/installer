@@ -3,7 +3,7 @@
 ##
 # Acuparse Installation Script
 # 2.1 Apache Migration Tasks
-# @copyright Copyright (C) 2015-2018 Maxwell Power
+# @copyright Copyright (C) 2015-2019 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #

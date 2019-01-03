@@ -3,7 +3,7 @@
 ##
 # Acuparse Installation Script
 # Let's Encrypt Installer
-# @copyright Copyright (C) 2015-2018 Maxwell Power
+# @copyright Copyright (C) 2015-2019 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #

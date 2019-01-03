@@ -3,7 +3,7 @@
 ##
 # Acuparse Installation Script
 # PHP 7.0 to 7.2 Upgrader
-# @copyright Copyright (C) 2015-2018 Maxwell Power
+# @copyright Copyright (C) 2015-2019 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #
