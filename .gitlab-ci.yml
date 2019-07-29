@@ -1,0 +1,75 @@
+stages:
+  - lint
+  - build
+  - quality
+
+variables:
+  LE_FQDN: "ci.dev.acuparse.com"
+  EMAIL: "ci@dev.acuparse.com"
+  TEST_USERNAME: "ci"
+  TEST_PASSWORD: ":}P@sssW0rd:)"
+
+.build_template: &build_template
+  stage: build
+  before_script:
+    - apt-get update
+    - apt-get dist-upgrade -y
+    - apt-get install curl wget -y
+  script:
+    - if [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -a -e -l ""$LE_FQDN","$EMAIL",n,n"; else bash install -s -d; fi
+    - export $(cat ~/.acuparse_db)
+    - curl -d 'mysql[hostname]=localhost&mysql[database]=acuparse&mysql[username]=acuparse&mysql[password]='"$ACUPARSE_DATABASE_PASSWORD"'&mysql[trim]=1' -X POST 'http://localhost/admin/install/?database'
+    - curl -d 'username='"TEST_USERNAME"'&email='"EMAIL"'&password='"TEST_PASSWORD" -X POST 'http://127.0.0.1/admin/install/?account&do'
+    - curl -o index.html http://127.0.0.1
+    - curl -k -o index_ssl.html https://127.0.0.1
+    - curl -o output.json http://127.0.0.1/?json
+    - curl -o weather.html http://127.0.0.1/?weather
+    - curl -o archive.html http://127.0.0.1/archive?html
+  artifacts:
+    untracked: true
+
+bash_scripts:
+  image: koalaman/shellcheck-alpine
+  stage: lint
+  before_script:
+    - export SHELLCHECK_OPTS="-e SC2034 -e SC2059"
+  script:
+    - shellcheck install
+    - shellcheck resources/*
+
+markdown:
+  stage: lint
+  image: pipelinecomponents/markdownlint:latest
+  script:
+    - mdl -g -i -r ~MD013 --warnings .
+
+debian_buster:
+  image: debian:buster
+  <<: *build_template
+
+ubuntu_bionic:
+  image: ubuntu:bionic
+  <<: *build_template
+
+ubuntu_disco:
+  image: ubuntu:disco
+  <<: *build_template
+
+code_quality:
+  image: docker:stable
+  stage: quality
+  variables:
+    DOCKER_DRIVER: overlay2
+  allow_failure: true
+  services:
+    - docker:stable-dind
+  script:
+    - export SP_VERSION=$(echo "$CI_SERVER_VERSION" | sed 's/^\([0-9]*\)\.\([0-9]*\).*/\1-\2-stable/')
+    - docker run
+      --env SOURCE_CODE="$PWD"
+      --volume "$PWD":/code
+      --volume /var/run/docker.sock:/var/run/docker.sock
+      "registry.gitlab.com/gitlab-org/security-products/codequality:$SP_VERSION" /code
+  artifacts:
+    reports:
+      codequality: gl-code-quality-report.json

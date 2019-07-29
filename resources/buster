@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+##
+# Acuparse Installation Script
+# Debian Stretch to Buster
+# @copyright Copyright (C) 2015-2019 Maxwell Power
+# @author Maxwell Power <max@acuparse.com>
+# @license MIT
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+##
+
+if [[ $(id -u) != "0" ]]; then
+	echo "Sorry, you are not root."
+	exit 1
+fi
+BOLD_GREEN_TEXT='\033[1;32m'
+RED_TEXT='\033[0;31m'
+RESET_TEXT='\033[0m'
+
+printf "\n${BOLD_GREEN_TEXT}#######################\n# Installation Ready! #\n#######################${RESET_TEXT}\n\n"
+printf "This process will upgrade Debian Stretch to Buster.\nThis is your last chance to exit.\n\n"
+printf "${RED_TEXT}When ready, Press [ENTER] to continue${RESET_TEXT}\n"
+read -r READY
+
+printf "Updating Sources to Buster\n\n"
+sed -i 's/stretch/buster/g' /etc/apt/sources.list
+
+rm /etc/apt/sources.list.d/php.list
+
+printf "Begin Upgrade to Buster\n\n"
+apt-get update
+apt-get dist-upgrade -y
+
+printf "Upgrading PHP to 7.3\n\n"
+printf "Removing PHP 5\n\n"
+apt-get remove php5* -y
+a2dismod php5
+
+printf "Removing PHP 7.0\n\n"
+apt-get remove php7.0* -y
+a2dismod php7.0
+
+printf "Removing PHP 7.1\n\n"
+apt-get remove php7.1* -y
+a2dismod php7.1
+
+printf "Removing PHP 7.2\n\n"
+apt-get remove php7.2* -y
+a2dismod php7.2
+
+apt-get update
+apt-get install git ntp dnsutils imagemagick apache2 default-mysql-server php7.3 libapache2-mod-php7.3 php7.3-mysql php7.3-gd php7.3-curl php7.3-json php7.3-cli php7.3-common -y
+a2enmod php7.3
+
+printf "\nCleanup APT\n\n"
+apt purge
+apt clean
+apt autoremove -y
+
+printf "\nRestarting Apache\n\n"
+systemctl restart apache2
+
+printf "\nDONE!\n"
+exit 0
