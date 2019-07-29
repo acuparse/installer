@@ -1,0 +1,443 @@
+#!/usr/bin/env bash
+SCRIPT_VERSION='1.3'
+
+##
+# Acuparse Installation Script
+# @copyright Copyright (C) 2015-2019 Maxwell Power
+# @author Maxwell Power <max@acuparse.com>
+# @license MIT
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+##
+
+usage () {
+    printf "Usage: [-b Branch] [-s Silent] [-l LE] [-p DB PASS] [-t Timezone] [-e EXIM] [-a PHPMyAdmin] [-d Debug]\n\n"
+    printf "Default is interactive install. For scripted install, use [-s (Optional: -b branch -t \"region/timezone\" -p \"root,acuparse\" -l \"FQDN,EMAIL,REDIRECT(y/n),WWW(y/n)\" -e -a)]\n"
+    exit 0
+}
+
+# Default Values
+SILENT=false
+GIT_BRANCH="master"
+MYSQL_ROOT_PASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 15 ; echo '')
+ACUPARSE_DATABASE_PASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 15 ; echo '')
+SQL_PW_SET=false
+
+while getopts ":db::sep::l::at::" opt; do
+  case ${opt} in
+        d)
+            set -x
+            ;;
+        b)
+            GIT_BRANCH=${OPTARG}
+            ;;
+        s)
+            SILENT=true
+            export DEBIAN_FRONTEND=noninteractive
+            ;;
+        e)
+    	    EXIM_ENABLED="y"
+            ;;
+        p)
+            set -f
+            IFS=,
+            DBPW_ARRAY=("$OPTARG")
+            MYSQL_ROOT_PASSWORD=${DBPW_ARRAY[0]}
+            ACUPARSE_DATABASE_PASSWORD=${DBPW_ARRAY[1]}
+            SQL_PW_SET=true
+            set +f
+            IFS=
+            ;;
+        l)
+            set -f
+            IFS=,
+            LE_SSL_ENABLED="y"
+            LE_ARRAY=("$OPTARG")
+            LE_FQDN=${LE_ARRAY[0]}
+            LE_EMAIL=${LE_ARRAY[1]}
+            LE_REDIRECT_ENABLED=${LE_ARRAY[2]}
+            LE_SECURE_WWW=${LE_ARRAY[3]}
+            set +f
+            IFS=,
+            ;;
+        a)
+            PHPMYADMIN_ENABLED="y"
+            ;;
+        t)
+            TIMEZONE=${OPTARG}
+            TZ_OPT_SET=true
+	        ;;
+        \?)
+            usage
+            exit 0
+            ;;
+    esac
+done
+
+# Set Text Colours
+GREEN_TEXT='\033[0;32m' BOLD_GREEN_TEXT='\033[1;32m' UNDERLINE_GREEN_TEXT='\033[4;32m' HIGHLIGHT_GREEN_TEXT='\033[7;32m' RED_TEXT='\033[0;31m' BOLD_RED_TEXT='\033[1;31m' UNDERLINE_RED_TEXT='\033[4;31m' BLUE_TEXT='\033[0;34m' BOLD_BLUE_TEXT='\033[1;34m' UNDERLINE_BLUE_TEXT='\033[4;34m' YELLOW_TEXT='\033[0;33m' BOLD_YELLOW_TEXT='\033[1;33m' UNDERLINE_YELLOW_TEXT='\033[4;33m' PURPLE_TEXT='\033[0;35m' BOLD_PURPLE_TEXT='\033[1;35m' UNDERLINE_PURPLE_TEXT='\033[4;35m' CYAN_TEXT="\033[0;36m" BOLD_CYAN_TEXT="\033[1;36m" UNDERLINE_CYAN_TEXT="\033[4;36m" RESET_TEXT='\033[0m'
+
+# Script Variables
+SYS_IP=$(hostname -i)
+SYS_FQDN=$(hostname -A)
+DIST=$(cat /etc/*release | grep '^ID=' | awk -F=  '{ print $2 }')
+DEB_VERSION=$(cat /etc/*release | grep '^VERSION_ID=' | awk -F=  '{ print $2 }')
+UBU_VERSION=$(cat /etc/*release | grep '^DISTRIB_RELEASE=' | awk -F=  '{ print $2 }')
+
+run_acuparse_install () {
+	git init /opt/acuparse
+    cd /opt/acuparse || exit 1
+	if [[ "$GIT_BRANCH" = "master" ]]; then
+		git remote add -t master -f origin https://github.com/acuparse/acuparse.git
+    else
+		git remote add -t "${GIT_BRANCH}" -f origin https://gitlab.com/acuparse/acuparse.git
+	fi
+	git pull
+	chown -R www-data:www-data /opt/acuparse/src
+	printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
+}
+
+run_exim_install () {
+    apt-get install exim4 -y
+    printf "Launch exim configuration\n"
+    if [[ "$SILENT" = false ]]; then
+        dpkg-reconfigure exim4-config
+    fi
+    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
+}
+
+run_phpmyadmin_install () {
+    echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
+    echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
+    echo "phpmyadmin phpmyadmin/mysql/app-pass password " | debconf-set-selections
+    apt-get install phpmyadmin -y
+    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
+}
+
+run_apache_setup () {
+    a2dissite 000-default.conf > /dev/null 2>&1
+	rm /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/default-ssl.conf
+	cp /opt/acuparse/config/acuparse.conf /etc/apache2/sites-available/
+	cp /opt/acuparse/config/acuparse-ssl.conf /etc/apache2/sites-available/
+	a2enmod rewrite > /dev/null 2>&1
+	a2enmod ssl > /dev/null 2>&1
+	a2ensite acuparse.conf > /dev/null 2>&1
+	a2ensite acuparse-ssl.conf > /dev/null 2>&1
+    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
+}
+
+install_le_cert () {
+    if [[ ("$LE_SECURE_WWW" = "y") || ("$LE_SECURE_WWW" = "Y") ]]; then
+        LE_SECURE_DOMAINS=(-d "$LE_FQDN" -d www."$LE_FQDN")
+    else
+        LE_SECURE_DOMAINS=(-d "$LE_FQDN")
+    fi
+
+    if [[ ("$LE_REDIRECT_ENABLED" = "y") || ("$LE_REDIRECT_ENABLED" = "Y") ]]; then
+        LE_REDIRECT="redirect"
+    else
+        LE_REDIRECT="no-redirect"
+    fi
+    if [[ ("$DIST" = "ubuntu") && ("$UBU_VERSION" = "18.04") ]]; then
+        printf "${YELLOW_TEXT}""UBUNTU 18.04 DETECTED! Using certbot PPA""${RESET_TEXT}""\n"
+        apt-get install software-properties-common -y
+        add-apt-repository ppa:certbot/certbot -y
+        apt-get update > /dev/null 2>&1
+    fi
+    apt-get install python-certbot-apache -y
+    sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
+    if [[ "$GIT_BRANCH" != "master" ]]; then
+        printf "Requesting cert from STAGING server\n"
+        certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}" --staging
+    else
+        printf "Requesting cert from PRODUCTION server\n"
+        certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
+    fi
+    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
+}
+
+run_database_install () {
+	/etc/init.d/mysql restart || exit 1
+	if [[ "$SQL_PW_SET" = false ]]; then
+	    save_database_credentials
+    fi
+    /etc/init.d/mysql restart || exit 1
+	mysql -uroot -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; FLUSH PRIVILEGES;"
+	mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; GRANT ALL PRIVILEGES ON acuparse.* TO 'acuparse' IDENTIFIED BY '$ACUPARSE_DATABASE_PASSWORD'; GRANT SUPER, EVENT ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
+	/etc/init.d/mysql restart || exit 1
+    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
+}
+
+save_database_credentials () {
+    cat > ~/.my.cnf << EOF
+[client]
+user=root
+password="${MYSQL_ROOT_PASSWORD}"
+
+[mysql]
+user=root
+password="${MYSQL_ROOT_PASSWORD}"
+EOF
+    cat > ~/.acuparse_db << EOF
+ACUPARSE_DATABASE_PASSWORD=${ACUPARSE_DATABASE_PASSWORD}
+EOF
+}
+
+run_timezone_set () {
+    if [[ "$SILENT" = true ]]; then
+        ln -fs /usr/share/zoneinfo/"${TIMEZONE}" /etc/localtime
+        dpkg-reconfigure --frontend noninteractive tzdata
+        /etc/init.d/rsyslog restart
+    else
+        printf "\n""${CYAN_TEXT}""Configuring your system timezone.""${RESET_TEXT}""\n"
+        printf "${RED_TEXT}""When ready, Press [ENTER] to continue""${RESET_TEXT}""\n"
+        read -r READY
+        dpkg-reconfigure tzdata
+        /etc/init.d/rsyslog restart
+    fi
+}
+
+# Begin Install
+printf "\nWelcome to the Acuparse Installation Script | Version: ""${SCRIPT_VERSION}""\n"
+printf "${YELLOW_TEXT}""WARNING:""${RESET_TEXT}"" Only run this script on a freshly installed Debian/Raspbian Buster(10) or Ubuntu 18.04/19.04 system!\n\n"
+
+# Ensure Debian/Ubuntu/Rasberian
+if [[ ("$DIST" = "debian") || ("$DIST" = "ubuntu") || ("$DIST" = "raspbian") ]]; then
+
+	#Check for ROOT
+    if [[ $(id -u) != "0" ]]; then
+		printf "${RED_TEXT}""ERROR: Installer must be run as root!""${RESET_TEXT}""\n"
+		exit 1
+	fi
+
+    cd ~ || exit 1
+
+	# Check Version
+	if [[ ("$DIST" = "debian") || ("$DIST" = "raspbian") ]]; then
+		if [[ "$DIST" = "raspbian" ]]; then
+			if [[ "$DEB_VERSION" = "\"10\"" ]]; then
+				PHP_VERSION="7.3"
+				printf "${GREEN_TEXT}""RASBIAN BUSTER(10) Successfully Detected!""${RESET_TEXT}""\n\n"
+			else
+				printf "${RED_TEXT}""ERROR: UNSUPPORTED RASBIAN! REINSTALL USING RASBIAN BUSTER(10)""${RESET_TEXT}""\n"
+				exit 1
+			fi
+		else
+			if [[ "$DEB_VERSION" != "\"10\"" ]]; then
+				printf "${RED_TEXT}""ERROR: UNSUPPORTED DEBIAN! REINSTALL USING DEBIAN BUSTER(10)""${RESET_TEXT}""\n"
+				exit 1
+			else
+				PHP_VERSION="7.3"
+				printf "${GREEN_TEXT}""DEBIAN BUSTER(10) Successfully Detected!""${RESET_TEXT}""\n\n"
+			fi
+		fi
+	else
+		if [[ "$UBU_VERSION" = "19.04" ]]; then
+			PHP_VERSION="7.2"
+			printf "${GREEN_TEXT}""Ubuntu 19.04 Successfully Detected!""${RESET_TEXT}""\n\n"
+		elif [[ "$UBU_VERSION" = "18.04" ]]; then
+			PHP_VERSION="7.2"
+			printf "${GREEN_TEXT}""Ubuntu 18.04 LTS Successfully Detected!""${RESET_TEXT}""\n\n"
+		else
+			printf "${RED_TEXT}""ERROR: UNSUPPORTED UBUNTU! REINSTALL USING UBUNTU 18.04 LTS or 19.04""${RESET_TEXT}""\n"
+			exit 1
+		fi
+	fi
+
+    if [[ "$SILENT" = false ]]; then
+        # Get user variables and setup install
+        printf "${BOLD_GREEN_TEXT}""####################\n# Pre-installation #\n####################""${RESET_TEXT}""\n\n"
+        printf "First, we'll configure your install:\n"
+        printf "${RED_TEXT}""When ready, Press [ENTER] to continue""${RESET_TEXT}""\n"
+        read -r READY
+
+        # MySQL Root
+        printf "Enter NEW MySQL ROOT password, followed by [ENTER]:\n"
+        stty -echo
+        read -r MYSQL_ROOT_PASSWORD
+        stty echo
+
+        # Acuparse DB
+        printf "Enter NEW Acuparse database password, followed by [ENTER]:\n"
+        printf "${YELLOW_TEXT}""Make a note of this password, you will need it to finish your install""${RESET_TEXT}""\n"
+        stty -echo
+        read -r ACUPARSE_DATABASE_PASSWORD
+        stty echo
+        SQL_PW_SET=true
+
+        # EXMIN
+        printf "Install Exim mail server?, y/N, followed by [ENTER]:\n"
+        read -r EXIM_ENABLED
+
+        # phpMyAdmin
+        printf "Install phpMyAdmin?, y/N, followed by [ENTER]:\n"
+        read -r PHPMYADMIN_ENABLED
+
+        # Let's Encrypt
+        printf "Configure SSL using Let's Encrypt?, y/N, followed by [ENTER]:\n"
+        read -r LE_SSL_ENABLED
+
+        if [[ ("$LE_SSL_ENABLED" = "y") || ("$LE_SSL_ENABLED" = "Y") ]]; then
+            printf "\nConfiguring Let's Encrypt\n\n"
+
+            printf "Enter FQDN(example.com/hostname.example.com), followed by [ENTER]:\n"
+            read -r LE_FQDN
+
+            printf "Also secure www.""$LE_FQDN""?, y/N, followed by [ENTER]:\n"
+            read -r LE_SECURE_WWW
+
+            printf "Certificate Email Address, followed by [ENTER]:\n"
+            read -r LE_EMAIL
+
+            printf "Redirect HTTP to HTTPS?, y/N, followed by [ENTER]:\n"
+            read -r LE_REDIRECT_ENABLED
+        fi
+        run_timezone_set
+        printf "\n""${BOLD_GREEN_TEXT}""#######################\n# Installation Ready! #\n#######################""${RESET_TEXT}""\n\n"
+        printf "This process will install and configure packages.\nThis is your last chance to exit.\n\n"
+        printf "${RED_TEXT}""When ready, Press [ENTER] to continue""${RESET_TEXT}""\n"
+        read -r READY
+    fi
+
+    if [[ "$TZ_OPT_SET" = true ]]; then
+        run_timezone_set
+    fi
+
+    # Begin Install
+	printf "${PURPLE_TEXT}""BEGIN: Starting Acuparse Installation""${RESET_TEXT}""\n\n"
+    if [[ "$SILENT" = false ]]; then sleep 1; fi
+	printf "${CYAN_TEXT}""BEGIN: Installing Packages""${RESET_TEXT}""\n"
+	if [[ "$SILENT" = false ]]; then sleep 1; fi
+	echo "mysql-server mysql-server/root_password password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
+	echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
+
+	# Install CORE Packages
+	apt-get update
+	printf "${CYAN_TEXT}""Running Upgrade ...""${RESET_TEXT}""\n"
+	apt-get dist-upgrade -y
+	printf "${CYAN_TEXT}""Install CORE Packages""${RESET_TEXT}""\n"
+	apt-get install git ntp dnsutils imagemagick apache2 default-mysql-server -y
+	/etc/init.d/mysql restart || exit 1
+    /etc/init.d/apache2 restart || exit 1
+    printf "${UNDERLINE_GREEN_TEXT}""DONE: CORE Packages""${RESET_TEXT}""\n\n"
+    if [[ "$SILENT" = false ]]; then sleep 1; fi
+
+	## INSTALL PHP
+	if [[ "$PHP_VERSION" = "7.3" ]] ; then
+		printf "${CYAN_TEXT}""Installing PHP7.3.""${RESET_TEXT}""\n"
+		if [[ "$SILENT" = false ]]; then sleep 1; fi
+		apt-get install php7.3 libapache2-mod-php7.3 php7.3-mysql php7.3-gd php7.3-curl php7.3-json php7.3-cli php7.3-common -y
+		printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP7.3.""${RESET_TEXT}""\n"
+	elif [[ "$PHP_VERSION" = "7.2" ]] ; then
+		printf "${CYAN_TEXT}""Installing PHP7.2.""${RESET_TEXT}""\n"
+		apt-get install php7.2 libapache2-mod-php7.2 php7.2-mysql php7.2-gd php7.2-curl php7.2-json php7.2-cli php7.2-common -y
+		printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP7.2.""${RESET_TEXT}""\n"
+	else
+		printf "${RED_TEXT}""ERROR: PHP INSTALL FAILED! Can't determine version to install.""${RESET_TEXT}""\n"
+		exit 1
+	fi
+	if [[ "$SILENT" = false ]]; then sleep 1; fi
+
+	# phpMyAdmin
+	if [[ ("$PHPMYADMIN_ENABLED" = "y") || ("$PHPMYADMIN_ENABLED" = "Y") ]]; then
+		printf "${CYAN_TEXT}""Installing phpMyAdmin""${RESET_TEXT}""\n"
+        run_phpmyadmin_install
+        printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing phpMyAdmin""${RESET_TEXT}""\n"
+        if [[ "$SILENT" = false ]]; then sleep 1; fi
+	fi
+
+	# EXIM
+	if [[ ("$EXIM_ENABLED" = "y") || ("$EXIM_ENABLED" = "Y") ]]; then
+		printf "${CYAN_TEXT}""Installing Exim mail server""${RESET_TEXT}""\n"
+		if [[ "$SILENT" = false ]]; then sleep 1; fi
+        run_exim_install
+        printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing Exim mail server""${RESET_TEXT}""\n"
+        if [[ "$SILENT" = false ]]; then sleep 1; fi
+	fi
+    printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing Packages""${RESET_TEXT}""\n\n"
+    if [[ "$SILENT" = false ]]; then sleep 1; fi
+
+	# Acuparse Source
+	printf "${CYAN_TEXT}""BEGIN: Install Acuparse via GIT""${RESET_TEXT}""\n"
+	if [[ "$SILENT" = false ]]; then sleep 1; fi
+    run_acuparse_install
+	printf "${UNDERLINE_GREEN_TEXT}""DONE: Install Acuparse via GIT""${RESET_TEXT}""\n\n"
+    if [[ "$SILENT" = false ]]; then sleep 1; fi
+
+	# Apache Config
+	printf "${CYAN_TEXT}""BEGIN: Configuring Apache""${RESET_TEXT}""\n"
+	if [[ "$SILENT" = false ]]; then sleep 1; fi
+	run_apache_setup
+	if [[ ("$LE_SSL_ENABLED" = "y") || ("$LE_SSL_ENABLED" = "Y") ]]; then
+	    printf "${CYAN_TEXT}""Deploying Let's Encrypt Certificate""${RESET_TEXT}""\n"
+        if [[ "$SILENT" = false ]]; then sleep 1; fi
+        install_le_cert
+        printf "${UNDERLINE_GREEN_TEXT}""DONE: Deploying Let's Encrypt Certificate""${RESET_TEXT}""\n"
+	fi
+    /etc/init.d/apache2 restart || exit 1
+	printf "${UNDERLINE_GREEN_TEXT}""DONE: Configuring Apache""${RESET_TEXT}""\n\n"
+	if [[ "$SILENT" = false ]]; then sleep 1; fi
+
+	# Database Config
+	printf "${CYAN_TEXT}""BEGIN: Creating Acuparse Database""${RESET_TEXT}""\n"
+	if [[ "$SILENT" = false ]]; then sleep 1; fi
+	run_database_install
+	printf "${UNDERLINE_GREEN_TEXT}""DONE: Creating Acuparse Database""${RESET_TEXT}""\n\n"
+    if [[ "$SILENT" = false ]]; then sleep 1; fi
+
+	# Crontab Config
+	printf "${CYAN_TEXT}""BEGIN: Installing Cron""${RESET_TEXT}""\n"
+	if [[ "$SILENT" = false ]]; then sleep 1; fi
+	(crontab -l 2>/dev/null; echo "* * * * * php /opt/acuparse/cron/cron.php > /opt/acuparse/logs/cron.log 2>&1") | crontab -
+	printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
+	printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing Cron""${RESET_TEXT}""\n\n"
+    if [[ "$SILENT" = false ]]; then sleep 1; fi
+
+	# Installation Cleanup
+	printf "${CYAN_TEXT}""BEGIN: Running Cleanup""${RESET_TEXT}""\n"
+	apt-get autoremove -y
+	apt-get clean -y
+	apt-get purge -y
+	/etc/init.d/mysql restart || exit 1
+    /etc/init.d/apache2 restart || exit 1
+	printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
+	printf "${UNDERLINE_GREEN_TEXT}""DONE: Running Cleanup""${RESET_TEXT}""\n\n"
+    if [[ "$SILENT" = false ]]; then sleep 1; fi
+
+	# Install Complete
+	printf "${PURPLE_TEXT}""DONE: Acuparse Installation Complete!""${RESET_TEXT}""\n\n"
+    SYS_WAN=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
+	printf "${YELLOW_TEXT}""Connect to your IP/Hostname with a browser to continue.""${RESET_TEXT}""\n\n"
+	printf "SYSTEM Hostname: ""${BOLD_BLUE_TEXT}""${SYS_FQDN}""${RESET_TEXT}""\n"
+	printf "SYSTEM IP: ""${BOLD_BLUE_TEXT}""${SYS_IP}""${RESET_TEXT}""\n"
+    printf "EXTERNAL IP: ""${UNDERLINE_GREEN_TEXT}""${SYS_WAN}""${RESET_TEXT}""\n"
+
+    if [[ "$SQL_PW_SET" = false ]]; then
+        printf "\nROOT MySQL Password: ""${BOLD_BLUE_TEXT}""${MYSQL_ROOT_PASSWORD}""${RESET_TEXT}""\n"
+        printf "ACUPARSE MySQL Password: ""${GREEN_TEXT}""${ACUPARSE_DATABASE_PASSWORD}""${RESET_TEXT}""\n"
+        printf "${YELLOW_TEXT}""Credentials saved to ~/credentials.txt""${RESET_TEXT}""\n"
+    fi
+    printf "\n"
+	exit 0
+
+# No Supported OS
+else
+	printf "${RED_TEXT}""ERROR: This script is designed to be run on a freshly installed Debian/Raspbian Buster(10) or Ubuntu 18.04/19.04 system""${RESET_TEXT}""\n"
+	exit 1
+fi
