@@ -1,6 +1,6 @@
 # Acuparse Automated Installation Script
 
-See the [Acuparse Install Guide](https://acuparse.gitlab.io/acuparse/install) for further install details.
+See the [Acuparse Install Guide](https://docs.acuparse.com/INSTALL) for further install details.
 
 > **WARNING:** ONLY Supports Debian/Rasbian Buster(10), Ubuntu 18.04 LTS, and Ubuntu 19.04.
 
