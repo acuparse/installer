@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-## 2.0 - 2019-07-07
+## 2.0.1 - 2019-07-28
+
+### Changed
+
+- Update docs path
+
+## 2.0 - 2019-07-28
 
 ### Changed
 
