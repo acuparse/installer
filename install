@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.0.1'
+SCRIPT_VERSION='2.0.2'
 
 ##
 # Acuparse Installation Script
@@ -27,7 +27,7 @@ SCRIPT_VERSION='2.0.1'
 ##
 
 usage () {
-    printf "Usage: [-b Branch] [-s Silent] [-l LE] [-p DB PASS] [-t Timezone] [-e EXIM] [-a PHPMyAdmin] [-d Debug]\n\n"
+    printf "Usage: [-b Branch] [-s Silent] [-l LE] [-p DB PASS] [-t Timezone] [-e EXIM] [-d Debug]\n\n"
     printf "Default is interactive install. For scripted install, use [-s (Optional: -b branch -t \"region/timezone\" -p \"root,acuparse\" -l \"FQDN,EMAIL,REDIRECT(y/n),WWW(y/n)\" -e -a)]\n"
     exit 0
 }
@@ -35,11 +35,10 @@ usage () {
 # Default Values
 SILENT=false
 GIT_BRANCH="master"
-MYSQL_ROOT_PASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 15 ; echo '')
 ACUPARSE_DATABASE_PASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 15 ; echo '')
 SQL_PW_SET=false
 
-while getopts ":db::sep::l::at::" opt; do
+while getopts ":db::sep::l::t::" opt; do
   case ${opt} in
         d)
             set -x
@@ -76,9 +75,6 @@ while getopts ":db::sep::l::at::" opt; do
             set +f
             IFS=,
             ;;
-        a)
-            PHPMYADMIN_ENABLED="y"
-            ;;
         t)
             TIMEZONE=${OPTARG}
             TZ_OPT_SET=true
@@ -102,7 +98,7 @@ UBU_VERSION=$(cat /etc/*release | grep '^DISTRIB_RELEASE=' | awk -F=  '{ print $
 
 run_acuparse_install () {
 	git init /opt/acuparse
-    cd /opt/acuparse || exit 1
+    cd /opt/acuparse || exit 12
 	if [[ "$GIT_BRANCH" = "master" ]]; then
 		git remote add -t master -f origin https://github.com/acuparse/acuparse.git
     else
@@ -110,7 +106,6 @@ run_acuparse_install () {
 	fi
 	git pull
 	chown -R www-data:www-data /opt/acuparse/src
-	printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
 }
 
 run_exim_install () {
@@ -119,15 +114,6 @@ run_exim_install () {
     if [[ "$SILENT" = false ]]; then
         dpkg-reconfigure exim4-config
     fi
-    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
-}
-
-run_phpmyadmin_install () {
-    echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
-    echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
-    echo "phpmyadmin phpmyadmin/mysql/app-pass password " | debconf-set-selections
-    apt-get install phpmyadmin -y
-    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
 }
 
 run_apache_setup () {
@@ -139,7 +125,6 @@ run_apache_setup () {
 	a2enmod ssl > /dev/null 2>&1
 	a2ensite acuparse.conf > /dev/null 2>&1
 	a2ensite acuparse-ssl.conf > /dev/null 2>&1
-    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
 }
 
 install_le_cert () {
@@ -169,31 +154,19 @@ install_le_cert () {
         printf "Requesting cert from PRODUCTION server\n"
         certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
     fi
-    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
 }
 
 run_database_install () {
 	/etc/init.d/mysql restart || exit 1
-	if [[ "$SQL_PW_SET" = false ]]; then
-	    save_database_credentials
+    if [[ "$SQL_PW_SET" = false ]]; then
+        save_database_credentials
     fi
-    /etc/init.d/mysql restart || exit 1
 	mysql -uroot -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; FLUSH PRIVILEGES;"
 	mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; GRANT ALL PRIVILEGES ON acuparse.* TO 'acuparse' IDENTIFIED BY '$ACUPARSE_DATABASE_PASSWORD'; GRANT SUPER, EVENT ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
 	/etc/init.d/mysql restart || exit 1
-    printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
 }
 
 save_database_credentials () {
-    cat > ~/.my.cnf << EOF
-[client]
-user=root
-password="${MYSQL_ROOT_PASSWORD}"
-
-[mysql]
-user=root
-password="${MYSQL_ROOT_PASSWORD}"
-EOF
     cat > ~/.acuparse_db << EOF
 ACUPARSE_DATABASE_PASSWORD=${ACUPARSE_DATABASE_PASSWORD}
 EOF
@@ -210,6 +183,29 @@ run_timezone_set () {
         read -r READY
         dpkg-reconfigure tzdata
         /etc/init.d/rsyslog restart
+    fi
+}
+
+cleanup () {
+    exit_code="$?"
+    if [[ "$exit_code" = 0 ]]; then
+        # Install Complete
+        printf "${PURPLE_TEXT}""DONE: Acuparse Installation Complete!""${RESET_TEXT}""\n\n"
+        SYS_WAN=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
+        printf "${YELLOW_TEXT}""Connect to your IP/Hostname with a browser to continue.""${RESET_TEXT}""\n\n"
+        printf "SYSTEM Hostname: ""${BOLD_BLUE_TEXT}""${SYS_FQDN}""${RESET_TEXT}""\n"
+        printf "SYSTEM IP: ""${BOLD_BLUE_TEXT}""${SYS_IP}""${RESET_TEXT}""\n"
+        printf "EXTERNAL IP: ""${UNDERLINE_GREEN_TEXT}""${SYS_WAN}""${RESET_TEXT}""\n"
+
+        if [[ "$SQL_PW_SET" = false ]]; then
+            printf "ACUPARSE Database Password: ""${GREEN_TEXT}""${ACUPARSE_DATABASE_PASSWORD}""${RESET_TEXT}""\n"
+            printf "${YELLOW_TEXT}""Credentials saved to ~/credentials.txt""${RESET_TEXT}""\n"
+        fi
+        printf "\n"
+        exit 0
+    else
+        printf "${RED_TEXT}""FAILURE: Acuparse Installation Failed. Review acuparse.log for details!""${RESET_TEXT}""\n\n"
+        exit 1
     fi
 }
 
@@ -267,12 +263,6 @@ if [[ ("$DIST" = "debian") || ("$DIST" = "ubuntu") || ("$DIST" = "raspbian") ]];
         printf "${RED_TEXT}""When ready, Press [ENTER] to continue""${RESET_TEXT}""\n"
         read -r READY
 
-        # MySQL Root
-        printf "Enter NEW MySQL ROOT password, followed by [ENTER]:\n"
-        stty -echo
-        read -r MYSQL_ROOT_PASSWORD
-        stty echo
-
         # Acuparse DB
         printf "Enter NEW Acuparse database password, followed by [ENTER]:\n"
         printf "${YELLOW_TEXT}""Make a note of this password, you will need it to finish your install""${RESET_TEXT}""\n"
@@ -284,10 +274,6 @@ if [[ ("$DIST" = "debian") || ("$DIST" = "ubuntu") || ("$DIST" = "raspbian") ]];
         # EXMIN
         printf "Install Exim mail server?, y/N, followed by [ENTER]:\n"
         read -r EXIM_ENABLED
-
-        # phpMyAdmin
-        printf "Install phpMyAdmin?, y/N, followed by [ENTER]:\n"
-        read -r PHPMYADMIN_ENABLED
 
         # Let's Encrypt
         printf "Configure SSL using Let's Encrypt?, y/N, followed by [ENTER]:\n"
@@ -320,19 +306,18 @@ if [[ ("$DIST" = "debian") || ("$DIST" = "ubuntu") || ("$DIST" = "raspbian") ]];
     fi
 
     # Begin Install
+    trap cleanup exit
 	printf "${PURPLE_TEXT}""BEGIN: Starting Acuparse Installation""${RESET_TEXT}""\n\n"
     if [[ "$SILENT" = false ]]; then sleep 1; fi
 	printf "${CYAN_TEXT}""BEGIN: Installing Packages""${RESET_TEXT}""\n"
 	if [[ "$SILENT" = false ]]; then sleep 1; fi
-	echo "mysql-server mysql-server/root_password password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
-	echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
 
 	# Install CORE Packages
 	apt-get update
 	printf "${CYAN_TEXT}""Running Upgrade ...""${RESET_TEXT}""\n"
 	apt-get dist-upgrade -y
 	printf "${CYAN_TEXT}""Install CORE Packages""${RESET_TEXT}""\n"
-	apt-get install git ntp dnsutils imagemagick apache2 default-mysql-server -y
+	apt-get install git ntp dnsutils imagemagick apache2 default-mysql-server -y || exit 1
 	/etc/init.d/mysql restart || exit 1
     /etc/init.d/apache2 restart || exit 1
     printf "${UNDERLINE_GREEN_TEXT}""DONE: CORE Packages""${RESET_TEXT}""\n\n"
@@ -342,25 +327,17 @@ if [[ ("$DIST" = "debian") || ("$DIST" = "ubuntu") || ("$DIST" = "raspbian") ]];
 	if [[ "$PHP_VERSION" = "7.3" ]] ; then
 		printf "${CYAN_TEXT}""Installing PHP7.3.""${RESET_TEXT}""\n"
 		if [[ "$SILENT" = false ]]; then sleep 1; fi
-		apt-get install php7.3 libapache2-mod-php7.3 php7.3-mysql php7.3-gd php7.3-curl php7.3-json php7.3-cli php7.3-common -y
+		apt-get install php7.3 libapache2-mod-php7.3 php7.3-mysql php7.3-gd php7.3-curl php7.3-json php7.3-cli php7.3-common -y || exit 1
 		printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP7.3.""${RESET_TEXT}""\n"
 	elif [[ "$PHP_VERSION" = "7.2" ]] ; then
 		printf "${CYAN_TEXT}""Installing PHP7.2.""${RESET_TEXT}""\n"
-		apt-get install php7.2 libapache2-mod-php7.2 php7.2-mysql php7.2-gd php7.2-curl php7.2-json php7.2-cli php7.2-common -y
+		apt-get install php7.2 libapache2-mod-php7.2 php7.2-mysql php7.2-gd php7.2-curl php7.2-json php7.2-cli php7.2-common -y || exit 1
 		printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP7.2.""${RESET_TEXT}""\n"
 	else
 		printf "${RED_TEXT}""ERROR: PHP INSTALL FAILED! Can't determine version to install.""${RESET_TEXT}""\n"
 		exit 1
 	fi
 	if [[ "$SILENT" = false ]]; then sleep 1; fi
-
-	# phpMyAdmin
-	if [[ ("$PHPMYADMIN_ENABLED" = "y") || ("$PHPMYADMIN_ENABLED" = "Y") ]]; then
-		printf "${CYAN_TEXT}""Installing phpMyAdmin""${RESET_TEXT}""\n"
-        run_phpmyadmin_install
-        printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing phpMyAdmin""${RESET_TEXT}""\n"
-        if [[ "$SILENT" = false ]]; then sleep 1; fi
-	fi
 
 	# EXIM
 	if [[ ("$EXIM_ENABLED" = "y") || ("$EXIM_ENABLED" = "Y") ]]; then
@@ -376,14 +353,14 @@ if [[ ("$DIST" = "debian") || ("$DIST" = "ubuntu") || ("$DIST" = "raspbian") ]];
 	# Acuparse Source
 	printf "${CYAN_TEXT}""BEGIN: Install Acuparse via GIT""${RESET_TEXT}""\n"
 	if [[ "$SILENT" = false ]]; then sleep 1; fi
-    run_acuparse_install
+    run_acuparse_install || exit 1
 	printf "${UNDERLINE_GREEN_TEXT}""DONE: Install Acuparse via GIT""${RESET_TEXT}""\n\n"
     if [[ "$SILENT" = false ]]; then sleep 1; fi
 
 	# Apache Config
 	printf "${CYAN_TEXT}""BEGIN: Configuring Apache""${RESET_TEXT}""\n"
 	if [[ "$SILENT" = false ]]; then sleep 1; fi
-	run_apache_setup
+	run_apache_setup || exit 1
 	if [[ ("$LE_SSL_ENABLED" = "y") || ("$LE_SSL_ENABLED" = "Y") ]]; then
 	    printf "${CYAN_TEXT}""Deploying Let's Encrypt Certificate""${RESET_TEXT}""\n"
         if [[ "$SILENT" = false ]]; then sleep 1; fi
@@ -394,10 +371,18 @@ if [[ ("$DIST" = "debian") || ("$DIST" = "ubuntu") || ("$DIST" = "raspbian") ]];
 	printf "${UNDERLINE_GREEN_TEXT}""DONE: Configuring Apache""${RESET_TEXT}""\n\n"
 	if [[ "$SILENT" = false ]]; then sleep 1; fi
 
+	# phpMyAdmin
+	if [[ ("$PHPMYADMIN_ENABLED" = "y") || ("$PHPMYADMIN_ENABLED" = "Y") ]]; then
+		printf "${CYAN_TEXT}""Installing phpMyAdmin""${RESET_TEXT}""\n"
+        run_phpmyadmin_install
+        printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing phpMyAdmin""${RESET_TEXT}""\n"
+        if [[ "$SILENT" = false ]]; then sleep 1; fi
+	fi
+
 	# Database Config
 	printf "${CYAN_TEXT}""BEGIN: Creating Acuparse Database""${RESET_TEXT}""\n"
 	if [[ "$SILENT" = false ]]; then sleep 1; fi
-	run_database_install
+	run_database_install || exit 1
 	printf "${UNDERLINE_GREEN_TEXT}""DONE: Creating Acuparse Database""${RESET_TEXT}""\n\n"
     if [[ "$SILENT" = false ]]; then sleep 1; fi
 
@@ -405,7 +390,6 @@ if [[ ("$DIST" = "debian") || ("$DIST" = "ubuntu") || ("$DIST" = "raspbian") ]];
 	printf "${CYAN_TEXT}""BEGIN: Installing Cron""${RESET_TEXT}""\n"
 	if [[ "$SILENT" = false ]]; then sleep 1; fi
 	(crontab -l 2>/dev/null; echo "* * * * * php /opt/acuparse/cron/cron.php > /opt/acuparse/logs/cron.log 2>&1") | crontab -
-	printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
 	printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing Cron""${RESET_TEXT}""\n\n"
     if [[ "$SILENT" = false ]]; then sleep 1; fi
 
@@ -416,24 +400,10 @@ if [[ ("$DIST" = "debian") || ("$DIST" = "ubuntu") || ("$DIST" = "raspbian") ]];
 	apt-get purge -y
 	/etc/init.d/mysql restart || exit 1
     /etc/init.d/apache2 restart || exit 1
-	printf "${HIGHLIGHT_GREEN_TEXT}""Success""${RESET_TEXT}""\n"
 	printf "${UNDERLINE_GREEN_TEXT}""DONE: Running Cleanup""${RESET_TEXT}""\n\n"
     if [[ "$SILENT" = false ]]; then sleep 1; fi
 
-	# Install Complete
-	printf "${PURPLE_TEXT}""DONE: Acuparse Installation Complete!""${RESET_TEXT}""\n\n"
-    SYS_WAN=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
-	printf "${YELLOW_TEXT}""Connect to your IP/Hostname with a browser to continue.""${RESET_TEXT}""\n\n"
-	printf "SYSTEM Hostname: ""${BOLD_BLUE_TEXT}""${SYS_FQDN}""${RESET_TEXT}""\n"
-	printf "SYSTEM IP: ""${BOLD_BLUE_TEXT}""${SYS_IP}""${RESET_TEXT}""\n"
-    printf "EXTERNAL IP: ""${UNDERLINE_GREEN_TEXT}""${SYS_WAN}""${RESET_TEXT}""\n"
-
-    if [[ "$SQL_PW_SET" = false ]]; then
-        printf "\nROOT MySQL Password: ""${BOLD_BLUE_TEXT}""${MYSQL_ROOT_PASSWORD}""${RESET_TEXT}""\n"
-        printf "ACUPARSE MySQL Password: ""${GREEN_TEXT}""${ACUPARSE_DATABASE_PASSWORD}""${RESET_TEXT}""\n"
-        printf "${YELLOW_TEXT}""Credentials saved to ~/credentials.txt""${RESET_TEXT}""\n"
-    fi
-    printf "\n"
+    # Done Install
 	exit 0
 
 # No Supported OS

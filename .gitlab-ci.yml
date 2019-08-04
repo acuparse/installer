@@ -16,10 +16,10 @@ variables:
     - apt-get dist-upgrade -y
     - apt-get install curl wget -y
   script:
-    - if [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -a -e -l ""$LE_FQDN","$EMAIL",n,n"; else bash install -s -d; fi
+    - if [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -e -l ""$LE_FQDN","$EMAIL",n,n"; else bash install -s -d; fi
     - export $(cat ~/.acuparse_db)
     - curl -d 'mysql[hostname]=localhost&mysql[database]=acuparse&mysql[username]=acuparse&mysql[password]='"$ACUPARSE_DATABASE_PASSWORD"'&mysql[trim]=1' -X POST 'http://localhost/admin/install/?database'
-    - curl -d 'username='"TEST_USERNAME"'&email='"EMAIL"'&password='"TEST_PASSWORD" -X POST 'http://127.0.0.1/admin/install/?account&do'
+    - curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" -X POST 'http://127.0.0.1/admin/install/?account&do'
     - curl -o index.html http://127.0.0.1
     - curl -k -o index_ssl.html https://127.0.0.1
     - curl -o output.json http://127.0.0.1/?json
