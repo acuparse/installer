@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+## 2.0.3 - 2019-08-17
+
+### Changed
+
+- Removed phpmyadmin install
+
+## 2.0.2 - 2019-08-04
+
+### Changed
+
+- Cleanup Variables and Exits
+
 ## 2.0.1 - 2019-07-28
 
 ### Changed

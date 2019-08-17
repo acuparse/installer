@@ -16,10 +16,10 @@ variables:
     - apt-get dist-upgrade -y
     - apt-get install curl wget -y
   script:
-    - if [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -a -e -l ""$LE_FQDN","$EMAIL",n,n"; else bash install -s -d; fi
+    - if [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -e -l ""$LE_FQDN","$EMAIL",n,n"; else bash install -s -d; fi
     - export $(cat ~/.acuparse_db)
     - curl -d 'mysql[hostname]=localhost&mysql[database]=acuparse&mysql[username]=acuparse&mysql[password]='"$ACUPARSE_DATABASE_PASSWORD"'&mysql[trim]=1' -X POST 'http://localhost/admin/install/?database'
-    - curl -d 'username='"TEST_USERNAME"'&email='"EMAIL"'&password='"TEST_PASSWORD" -X POST 'http://127.0.0.1/admin/install/?account&do'
+    - curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" -X POST 'http://127.0.0.1/admin/install/?account&do'
     - curl -o index.html http://127.0.0.1
     - curl -k -o index_ssl.html https://127.0.0.1
     - curl -o output.json http://127.0.0.1/?json
@@ -56,20 +56,32 @@ ubuntu_disco:
   <<: *build_template
 
 code_quality:
-  image: docker:stable
   stage: quality
-  variables:
-    DOCKER_DRIVER: overlay2
+  image: docker:stable
   allow_failure: true
   services:
     - docker:stable-dind
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ""
   script:
-    - export SP_VERSION=$(echo "$CI_SERVER_VERSION" | sed 's/^\([0-9]*\)\.\([0-9]*\).*/\1-\2-stable/')
+    - |
+      if ! docker info &>/dev/null; then
+        if [ -z "$DOCKER_HOST" -a "$KUBERNETES_PORT" ]; then
+          export DOCKER_HOST='tcp://localhost:2375'
+        fi
+      fi
     - docker run
       --env SOURCE_CODE="$PWD"
       --volume "$PWD":/code
       --volume /var/run/docker.sock:/var/run/docker.sock
-      "registry.gitlab.com/gitlab-org/security-products/codequality:$SP_VERSION" /code
+      "registry.gitlab.com/gitlab-org/security-products/codequality:12-0-stable" /code
   artifacts:
     reports:
       codequality: gl-code-quality-report.json
+  only:
+    - branches
+    - tags
+  except:
+    variables:
+      - $CODE_QUALITY_DISABLED
