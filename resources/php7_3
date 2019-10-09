@@ -26,17 +26,17 @@
 # SOFTWARE.
 ##
 
-DIST=$(cat /etc/*release | grep '^ID=' | awk -F=  '{ print $2 }')
+DIST=$(cat /etc/*release | grep '^ID=' | awk -F= '{ print $2 }')
 
 if [[ $(id -u) != "0" ]]; then
-	echo "Sorry, you are not root."
-	exit 1
+  echo "Sorry, you are not root."
+  exit 1
 fi
 
 printf "Upgrading PHP to 7.3\n\n"
 
 printf "Installation Ready!\n\nThis process will attempt to remove PHP 5, 7.0, 7.1, and 7.2 then install PHP 7.3.\nThis is your last chance to exit.\n\n"
-	
+
 printf "When ready, Press [ENTER] to continue\n"
 read -r READY
 
@@ -61,16 +61,16 @@ apt-get remove php7.2* -y
 a2dismod php7.2
 
 printf "\nInstalling PHP 7.3\n\n"
-if [[ ("$DIST" = "debian") || ("$DIST" = "raspbian") ]]; then
-	printf "DEBIAN DETECTED!\nRemoving DEB.SURY.ORG repository.\n\n"
-    rm /etc/apt/sources.list.d/php.list
+if [[ ("$DIST" == "debian") || ("$DIST" == "raspbian") ]]; then
+  printf "DEBIAN DETECTED!\nRemoving DEB.SURY.ORG repository.\n\n"
+  rm /etc/apt/sources.list.d/php.list
 fi
 
-if [[ "$DIST" = "ubuntu" ]]; then
-    printf "UBUNTU DETECTED!\nAdding DEB.SURY.ORG repository.\n\n"
-    apt-get install ca-certificates apt-transport-https -y
-    wget -q https://packages.sury.org/php/apt.gpg -O- | apt-key add -
-    echo "deb https://packages.sury.org/php/ stretch main" | tee /etc/apt/sources.list.d/php.list
+if [[ "$DIST" == "ubuntu" ]]; then
+  printf "UBUNTU DETECTED!\nAdding DEB.SURY.ORG repository.\n\n"
+  apt-get install ca-certificates apt-transport-https -y
+  wget -q https://packages.sury.org/php/apt.gpg -O- | apt-key add -
+  echo "deb https://packages.sury.org/php/ stretch main" | tee /etc/apt/sources.list.d/php.list
 fi
 
 apt-get update

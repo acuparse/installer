@@ -27,8 +27,8 @@
 ##
 
 if [[ $(id -u) != "0" ]]; then
-	echo "Sorry, you are not root."
-	exit 1
+  echo "Sorry, you are not root."
+  exit 1
 fi
 BOLD_GREEN_TEXT='\033[1;32m'
 RED_TEXT='\033[0;31m'

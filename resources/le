@@ -13,7 +13,7 @@
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
 #
@@ -26,47 +26,47 @@
 # SOFTWARE.
 ##
 
-DIST=$(cat /etc/*release | grep '^ID=' | awk -F=  '{ print $2 }')
-DEB_VERSION=$(cat /etc/*release | grep '^VERSION_ID=' | awk -F=  '{ print $2 }')
+DIST=$(cat /etc/*release | grep '^ID=' | awk -F= '{ print $2 }')
+DEB_VERSION=$(cat /etc/*release | grep '^VERSION_ID=' | awk -F= '{ print $2 }')
 UBU_VERSION=$(cat /etc/*release | grep '^DISTRIB_RELEASE=' | awk -F='  { print $2 }')
 
 if [[ $(id -u) != "0" ]]; then
-    echo "Sorry, you are not root."
-    exit 1
+  echo "Sorry, you are not root."
+  exit 1
 fi
 
-install_le_cert () {
-    if [[ ("$LE_SECURE_WWW" = "y") || ("$LE_SECURE_WWW" = "Y") ]]; then
-        LE_SECURE_DOMAINS=(-d "$LE_FQDN" -d www."$LE_FQDN")
-    else
-        LE_SECURE_DOMAINS=(-d "$LE_FQDN")
-    fi
+install_le_cert() {
+  if [[ ("$LE_SECURE_WWW" == "y") || ("$LE_SECURE_WWW" == "Y") ]]; then
+    LE_SECURE_DOMAINS=(-d "$LE_FQDN" -d www."$LE_FQDN")
+  else
+    LE_SECURE_DOMAINS=(-d "$LE_FQDN")
+  fi
 
-    if [[ ("$LE_REDIRECT_ENABLED" = "y") || ("$LE_REDIRECT_ENABLED" = "Y") ]]; then
-        LE_REDIRECT="redirect"
-    else
-        LE_REDIRECT="no-redirect"
-    fi
-    if [[ ("$DIST" = "ubuntu") && ("$UBU_VERSION" = "18.04") ]]; then
-        printf "UBUNTU 18.04 DETECTED! Using certbot PPA\n"
-        apt-get install software-properties-common -y
-        add-apt-repository ppa:certbot/certbot -y
-        apt-get update > /dev/null 2>&1
-    fi
-    apt-get install python-certbot-apache -y
-    a2dissite 000-default.conf > /dev/null 2>&1
-    a2dissite acuparse.conf > /dev/null 2>&1
-    rm /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/default-ssl.conf  /etc/apache2/sites-enabled/acuparse.conf > /dev/null 2>&1
-    cp /opt/acuparse/config/acuparse.conf /etc/apache2/sites-available/ > /dev/null 2>&1
-    cp /opt/acuparse/config/acuparse-ssl.conf /etc/apache2/sites-available/ > /dev/null 2>&1
-    a2enmod rewrite > /dev/null 2>&1
-    a2enmod ssl > /dev/null 2>&1
-    a2ensite acuparse.conf > /dev/null 2>&1
-    a2ensite acuparse-ssl.conf > /dev/null 2>&1
-    sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
-    printf "Requesting cert from PRODUCTION server\n"
-    certbot -n --authenticator standalone --installer apache --agree-tos --${LE_REDIRECT} --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
-    printf "Success\n"
+  if [[ ("$LE_REDIRECT_ENABLED" == "y") || ("$LE_REDIRECT_ENABLED" == "Y") ]]; then
+    LE_REDIRECT="redirect"
+  else
+    LE_REDIRECT="no-redirect"
+  fi
+  if [[ ("$DIST" == "ubuntu") && ("$UBU_VERSION" == "18.04") ]]; then
+    printf "UBUNTU 18.04 DETECTED! Using certbot PPA\n"
+    apt-get install software-properties-common -y
+    add-apt-repository ppa:certbot/certbot -y
+    apt-get update >/dev/null 2>&1
+  fi
+  apt-get install python-certbot-apache -y
+  a2dissite 000-default.conf >/dev/null 2>&1
+  a2dissite acuparse.conf >/dev/null 2>&1
+  rm /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/default-ssl.conf /etc/apache2/sites-enabled/acuparse.conf >/dev/null 2>&1
+  cp /opt/acuparse/config/acuparse.conf /etc/apache2/sites-available/ >/dev/null 2>&1
+  cp /opt/acuparse/config/acuparse-ssl.conf /etc/apache2/sites-available/ >/dev/null 2>&1
+  a2enmod rewrite >/dev/null 2>&1
+  a2enmod ssl >/dev/null 2>&1
+  a2ensite acuparse.conf >/dev/null 2>&1
+  a2ensite acuparse-ssl.conf >/dev/null 2>&1
+  sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
+  printf "Requesting cert from PRODUCTION server\n"
+  certbot -n --authenticator standalone --installer apache --agree-tos --${LE_REDIRECT} --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
+  printf "Success\n"
 }
 
 printf "\nConfiguring Let's Encrypt\n\n"
