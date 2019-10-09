@@ -39,9 +39,11 @@ bash_scripts:
 
 markdown:
   stage: lint
-  image: pipelinecomponents/markdownlint:latest
+  image: node:latest
+  before_script:
+    - npm install -g markdownlint-cli
   script:
-    - mdl -g -i -r ~MD013 --warnings .
+    - markdownlint .
 
 debian_buster:
   image: debian:buster
