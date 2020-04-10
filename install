@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.0.3'
+SCRIPT_VERSION='2.0.4'
 
 ##
 # Acuparse Installation Script
@@ -133,8 +133,10 @@ run_apache_setup() {
 install_le_cert() {
   if [[ ("$LE_SECURE_WWW" == "y") || ("$LE_SECURE_WWW" == "Y") ]]; then
     LE_SECURE_DOMAINS=(-d "$LE_FQDN" -d www."$LE_FQDN")
+    sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
   else
     LE_SECURE_DOMAINS=(-d "$LE_FQDN")
+    sed -i "s/#ServerName/ServerName ${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
   fi
 
   if [[ ("$LE_REDIRECT_ENABLED" == "y") || ("$LE_REDIRECT_ENABLED" == "Y") ]]; then
@@ -149,7 +151,7 @@ install_le_cert() {
     apt-get update >/dev/null 2>&1
   fi
   apt-get install python-certbot-apache -y
-  sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
+  /etc/init.d/apache2 stop
   if [[ "$GIT_BRANCH" != "master" ]]; then
     printf "Requesting cert from STAGING server\n"
     certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}" --staging
@@ -157,6 +159,7 @@ install_le_cert() {
     printf "Requesting cert from PRODUCTION server\n"
     certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
   fi
+  /etc/init.d/apache2 start
 }
 
 run_database_install() {

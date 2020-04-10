@@ -57,6 +57,10 @@ ubuntu_disco:
   image: ubuntu:disco
   <<: *build_template
 
+ubuntu_focal:
+  image: ubuntu:focal
+  <<: *build_template
+
 code_quality:
   stage: quality
   image: docker:stable
