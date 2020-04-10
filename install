@@ -250,7 +250,10 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
       fi
     fi
   else
-    if [[ "$UBU_VERSION" == "19.04" ]]; then
+    if [[ "$UBU_VERSION" == "20.04" ]]; then
+      PHP_VERSION="7.4"
+      printf "${GREEN_TEXT}""Ubuntu 20.04 Successfully Detected!""${RESET_TEXT}""\n\n"
+    elif [[ "$UBU_VERSION" == "19.04" ]]; then
       PHP_VERSION="7.2"
       printf "${GREEN_TEXT}""Ubuntu 19.04 Successfully Detected!""${RESET_TEXT}""\n\n"
     elif [[ "$UBU_VERSION" == "18.04" ]]; then
@@ -330,7 +333,12 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 
   ## INSTALL PHP
-  if [[ "$PHP_VERSION" == "7.3" ]]; then
+  if [[ "$PHP_VERSION" == "7.4" ]]; then
+    printf "${CYAN_TEXT}""Installing PHP7.4.""${RESET_TEXT}""\n"
+    if [[ "$SILENT" == false ]]; then sleep 1; fi
+    apt-get install php7.4 libapache2-mod-php7.4 php7.4-mysql php7.4-gd php7.4-curl php7.4-json php7.4-cli php7.4-common -y || exit 1
+    printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP7.4.""${RESET_TEXT}""\n"
+  elif [[ "$PHP_VERSION" == "7.3" ]]; then
     printf "${CYAN_TEXT}""Installing PHP7.3.""${RESET_TEXT}""\n"
     if [[ "$SILENT" == false ]]; then sleep 1; fi
     apt-get install php7.3 libapache2-mod-php7.3 php7.3-mysql php7.3-gd php7.3-curl php7.3-json php7.3-cli php7.3-common -y || exit 1
