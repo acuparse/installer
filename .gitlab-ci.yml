@@ -52,11 +52,6 @@ debian_buster:
 ubuntu_bionic:
   image: ubuntu:bionic
   <<: *build_template
-
-ubuntu_disco:
-  image: ubuntu:disco
-  <<: *build_template
-
 ubuntu_focal:
   image: ubuntu:focal
   <<: *build_template
