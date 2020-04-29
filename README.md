@@ -2,11 +2,15 @@
 
 See the [Acuparse Install Guide](https://docs.acuparse.com/INSTALL) for further install details.
 
-> **WARNING:** ONLY Supports Debian/Rasbian Buster(10), Ubuntu 18.04 LTS, and Ubuntu 19.04.
+> **NOTICE:** ONLY Supports Debian/Rasbian Buster(10), Ubuntu Bionic(18.04) and Ubuntu Focal(20.04).
 
 ## Usage
 
-Install your base Debian based operating system and update. Then run this installer.
+Install your base Debian/Ubuntu based operating system. Then, run this installer:
+
+`curl -O https://gitlab.com/acuparse/installer/raw/master/install && sudo bash install | tee ~/acuparse.log`
+
+If that fails, try:
 
 `wget https://gitlab.com/acuparse/installer/raw/master/install && sudo bash install | tee ~/acuparse.log`
 

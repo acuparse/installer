@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.0.3'
+SCRIPT_VERSION='2.0.5'
 
 ##
 # Acuparse Installation Script
-# @copyright Copyright (C) 2015-2019 Maxwell Power
+# @copyright Copyright (C) 2015-2020 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #
@@ -133,8 +133,10 @@ run_apache_setup() {
 install_le_cert() {
   if [[ ("$LE_SECURE_WWW" == "y") || ("$LE_SECURE_WWW" == "Y") ]]; then
     LE_SECURE_DOMAINS=(-d "$LE_FQDN" -d www."$LE_FQDN")
+    sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
   else
     LE_SECURE_DOMAINS=(-d "$LE_FQDN")
+    sed -i "s/#ServerName/ServerName ${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
   fi
 
   if [[ ("$LE_REDIRECT_ENABLED" == "y") || ("$LE_REDIRECT_ENABLED" == "Y") ]]; then
@@ -147,9 +149,17 @@ install_le_cert() {
     apt-get install software-properties-common -y
     add-apt-repository ppa:certbot/certbot -y
     apt-get update >/dev/null 2>&1
+    apt-get install python-certbot-apache -y
+  elif [[ ("$DIST" == "ubuntu") && ("$UBU_VERSION" == "20.04") ]]; then
+    printf "${YELLOW_TEXT}""UBUNTU 20.04 DETECTED! Using certbot PPA""${RESET_TEXT}""\n"
+    apt-get install software-properties-common -y
+    add-apt-repository ppa:certbot/certbot -y
+    apt-get update >/dev/null 2>&1
+    apt-get install python3-certbot-apache -y
+  else
+    apt-get install python-certbot-apache -y
   fi
-  apt-get install python-certbot-apache -y
-  sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
+  /etc/init.d/apache2 stop
   if [[ "$GIT_BRANCH" != "master" ]]; then
     printf "Requesting cert from STAGING server\n"
     certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}" --staging
@@ -157,6 +167,7 @@ install_le_cert() {
     printf "Requesting cert from PRODUCTION server\n"
     certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
   fi
+  /etc/init.d/apache2 start
 }
 
 run_database_install() {
@@ -165,7 +176,7 @@ run_database_install() {
     save_database_credentials
   fi
   mysql -uroot -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; FLUSH PRIVILEGES;"
-  mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; GRANT ALL PRIVILEGES ON acuparse.* TO 'acuparse' IDENTIFIED BY '$ACUPARSE_DATABASE_PASSWORD'; GRANT SUPER, EVENT ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
+  mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; CREATE USER 'acuparse' IDENTIFIED BY '$ACUPARSE_DATABASE_PASSWORD'; GRANT ALL ON acuparse.* TO 'acuparse'; GRANT SUPER, EVENT ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
   /etc/init.d/mysql restart || exit 1
 }
 
@@ -247,14 +258,14 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
       fi
     fi
   else
-    if [[ "$UBU_VERSION" == "19.04" ]]; then
+    if [[ "$UBU_VERSION" == "20.04" ]]; then
+      PHP_VERSION="7.4"
+      printf "${GREEN_TEXT}""Ubuntu Focal(20.04) Successfully Detected!""${RESET_TEXT}""\n\n"
+     elif [[ "$UBU_VERSION" == "18.04" ]]; then
       PHP_VERSION="7.2"
-      printf "${GREEN_TEXT}""Ubuntu 19.04 Successfully Detected!""${RESET_TEXT}""\n\n"
-    elif [[ "$UBU_VERSION" == "18.04" ]]; then
-      PHP_VERSION="7.2"
-      printf "${GREEN_TEXT}""Ubuntu 18.04 LTS Successfully Detected!""${RESET_TEXT}""\n\n"
+      printf "${GREEN_TEXT}""Ubuntu Bionic(18.04) Successfully Detected!""${RESET_TEXT}""\n\n"
     else
-      printf "${RED_TEXT}""ERROR: UNSUPPORTED UBUNTU! REINSTALL USING UBUNTU 18.04 LTS or 19.04""${RESET_TEXT}""\n"
+      printf "${RED_TEXT}""ERROR: UNSUPPORTED UBUNTU! REINSTALL USING UBUNTU 18.04""${RESET_TEXT}""\n"
       exit 1
     fi
   fi
@@ -327,7 +338,12 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 
   ## INSTALL PHP
-  if [[ "$PHP_VERSION" == "7.3" ]]; then
+  if [[ "$PHP_VERSION" == "7.4" ]]; then
+    printf "${CYAN_TEXT}""Installing PHP7.4.""${RESET_TEXT}""\n"
+    if [[ "$SILENT" == false ]]; then sleep 1; fi
+    apt-get install php7.4 libapache2-mod-php7.4 php7.4-mysql php7.4-gd php7.4-curl php7.4-json php7.4-cli php7.4-common -y || exit 1
+    printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP7.4.""${RESET_TEXT}""\n"
+  elif [[ "$PHP_VERSION" == "7.3" ]]; then
     printf "${CYAN_TEXT}""Installing PHP7.3.""${RESET_TEXT}""\n"
     if [[ "$SILENT" == false ]]; then sleep 1; fi
     apt-get install php7.3 libapache2-mod-php7.3 php7.3-mysql php7.3-gd php7.3-curl php7.3-json php7.3-cli php7.3-common -y || exit 1
@@ -414,6 +430,6 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
 
 # No Supported OS
 else
-  printf "${RED_TEXT}""ERROR: This script is designed to be run on a freshly installed Debian/Raspbian Buster(10) or Ubuntu 18.04/19.04 system""${RESET_TEXT}""\n"
+  printf "${RED_TEXT}""ERROR: This script is designed to be run on a freshly installed Debian/Raspbian Buster(10) or Ubuntu 18.04 system""${RESET_TEXT}""\n"
   exit 1
 fi
