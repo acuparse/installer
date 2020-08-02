@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+
+##
+# Acuparse V3 Update Script
+# @copyright Copyright (C) 2015-2020 Maxwell Power
+# @author Maxwell Power <max@acuparse.com>
+# @license MIT
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+##
+
+BRANCH='stable'
+
+# Set Text Colours
+GREEN_TEXT='\033[0;32m' RED_TEXT='\033[0;31m' RESET_TEXT='\033[0m'
+
+function UpdateApacheConfig() {
+  echo "Updating Apache Config"
+  sed -i 's/AllowOverride None/AllowOverride FileInfo\n        ServerSignature Off/' /etc/apache2/sites-available/acuparse.conf
+  sed -i 's/AllowOverride None/AllowOverride FileInfo\n        ServerSignature Off/' /etc/apache2/sites-available/acuparse-ssl.conf
+  printf '\nServerTokens Prod\nFileETag None' >>/etc/apache2/sites-available/acuparse.conf
+  printf '\nServerTokens Prod\nFileETag None' >>/etc/apache2/sites-available/acuparse-ssl.conf
+}
+
+function UpdateGitConfig() {
+  echo "Updating GIT Config"
+  cd /opt/acuparse || exit 1
+  git reset v2.10.0
+  git remote remove origin
+  git remote add -f origin https://github.com/acuparse/acuparse.git
+  git branch --set-upstream-to=origin/"$BRANCH" "$BRANCH"
+  git checkout "$BRANCH" && git pull
+}
+
+#Check for ROOT
+if [[ $(id -u) != "0" ]]; then
+  printf "${RED_TEXT}""ERROR: Updater must be run as root!""${RESET_TEXT}""\n"
+  exit 1
+fi
+
+# Begin Update
+printf "\nWelcome to the Acuparse Version 3 Update Script""\n"
+printf "${RED_TEXT}""Backup any source code changes before continuing""${RESET_TEXT}""\n"
+printf "${RED_TEXT}""When ready, Press [ENTER] to continue""${RESET_TEXT}""\n"
+read -r READY
+
+if [ ! "$READY" ]; then
+
+  # Ensure Debian/Ubuntu/Rasberian
+  DIST=$(cat /etc/*release | grep '^ID=' | awk -F= '{ print $2 }')
+  DEB_VERSION=$(cat /etc/*release | grep '^VERSION_ID=' | awk -F= '{ print $2 }')
+  UBU_VERSION=$(cat /etc/*release | grep '^DISTRIB_RELEASE=' | awk -F= '{ print $2 }')
+  if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") ]]; then
+
+    # Check Version
+    if [[ ("$DIST" == "debian") || ("$DIST" == "raspbian") ]]; then
+      if [[ "$DIST" == "raspbian" ]]; then
+        if [[ "$DEB_VERSION" == "\"10\"" ]]; then
+          printf "${GREEN_TEXT}""RASBIAN BUSTER(10) Successfully Detected!""${RESET_TEXT}""\n\n"
+        else
+          printf "${RED_TEXT}""ERROR: UNSUPPORTED RASBIAN!""${RESET_TEXT}""\n"
+          exit 1
+        fi
+      else
+        if [[ "$DEB_VERSION" != "\"10\"" ]]; then
+          printf "${RED_TEXT}""ERROR: UNSUPPORTED DEBIAN!""${RESET_TEXT}""\n"
+          exit 1
+        else
+          printf "${GREEN_TEXT}""DEBIAN BUSTER(10) Successfully Detected!""${RESET_TEXT}""\n\n"
+        fi
+      fi
+    else
+      if [[ "$UBU_VERSION" == "20.04" ]]; then
+        printf "${GREEN_TEXT}""Ubuntu Focal(20.04) Successfully Detected!""${RESET_TEXT}""\n\n"
+      elif [[ "$UBU_VERSION" == "18.04" ]]; then
+        printf "${GREEN_TEXT}""Ubuntu Bionic(18.04) Successfully Detected!""${RESET_TEXT}""\n\n"
+      else
+        printf "${RED_TEXT}""ERROR: UNSUPPORTED UBUNTU!""${RESET_TEXT}""\n"
+        exit 1
+      fi
+    fi
+
+    UpdateApacheConfig
+    UpdateGitConfig
+
+  # No Supported OS
+  else
+    printf "${RED_TEXT}""ERROR: This script is designed to be run on a Debian/Raspbian Buster(10) or Ubuntu 20.04/18.04 system""${RESET_TEXT}""\n"
+    exit 1
+  fi
+fi

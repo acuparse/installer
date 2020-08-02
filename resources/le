@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
 ##
-# Acuparse Installation Script
-# Let's Encrypt Installer
-# @copyright Copyright (C) 2015-2019 Maxwell Power
+# Acuparse Let's Encrypt Installer Script
+# @copyright Copyright (C) 2015-2020 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #

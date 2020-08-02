@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
 ##
-# Acuparse Installation Script
-# 2.1 Apache Migration Tasks
-# @copyright Copyright (C) 2015-2019 Maxwell Power
+# Acuparse 2.1 Apache Migration Script
+# @copyright Copyright (C) 2015-2020 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #

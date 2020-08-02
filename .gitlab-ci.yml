@@ -1,34 +1,76 @@
 stages:
   - lint
-  - build
-  - quality
+  - install
+  - test
 
 variables:
   LE_FQDN: "ci.dev.acuparse.com"
   EMAIL: "ci@dev.acuparse.com"
   TEST_USERNAME: "ci"
-  TEST_PASSWORD: ":}P@sssW0rd:)"
+  TEST_PASSWORD: "P@55w0rd!"
 
-.build_template: &build_template
-  stage: build
+.TEMPLATE:LOCAL:install:
+  stage: install
   before_script:
     - apt-get update
-    - apt-get dist-upgrade -y
-    - apt-get install curl wget -y
+    - apt-get dist-upgrade -yq
+    - apt-get install curl wget -yq
   script:
-    - if [ "$UPSTREAM_BRANCH" != "" ]; then bash install -b $UPSTREAM_BRANCH -s -d; elif [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -e -l ""$LE_FQDN","$EMAIL",n,n"; else bash install -s -d; fi
-    - export $(cat ~/.acuparse_db)
-    - curl -d 'mysql[hostname]=localhost&mysql[database]=acuparse&mysql[username]=acuparse&mysql[password]='"$ACUPARSE_DATABASE_PASSWORD"'&mysql[trim]=1' -X POST 'http://localhost/admin/install/?database'
-    - curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" -X POST 'http://127.0.0.1/admin/install/?account&do'
-    - curl -o index.html http://127.0.0.1
-    - curl -k -o index_ssl.html https://127.0.0.1
-    - curl -o output.json http://127.0.0.1/?json
-    - curl -o weather.html http://127.0.0.1/?weather
-    - curl -o archive.html http://127.0.0.1/archive?html
+    - bash tests/installer
   artifacts:
-    untracked: true
+    paths:
+      - output
+  dependencies: [ ]
 
-bash_scripts:
+.TEMPLATE:DOCKER:container:
+  stage: install
+  image: alpine
+  variables:
+    MYSQL_ROOT_PASSWORD: P@ssw0rd1234
+    MYSQL_DATABASE: acuparse
+    MYSQL_USER: acuparse
+    MYSQL_PASSWORD: P@ssw0rd1234
+    MYSQL_HOSTNAME: db
+    TZ: America/Denver
+    FF_NETWORK_PER_BUILD: 1
+  before_script:
+    - apk --no-cache add curl mysql-client bash
+    - >
+      while ! mysqladmin ping -h"${MYSQL_HOSTNAME}" -p"${MYSQL_PASSWORD}" --silent; do
+        echo "Waiting for SQL Container"
+        ((c++)) && ((c==30)) && break
+        sleep 5
+      done
+    - chmod +x tests/installer
+  script:
+    - tests/installer container
+  allow_failure: true
+  artifacts:
+    paths:
+      - output
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+  dependencies: [ ]
+
+.TEMPLATE:DOCKER:install:
+  stage: install
+  before_script:
+    - apt-get update
+    - apt-get dist-upgrade -yq
+    - apt-get install curl -yq
+  script:
+    - >
+      if [ "$CI_COMMIT_BRANCH" != "master" ]; then
+        sed -i "s/REPO='master'/REPO='"$CI_COMMIT_BRANCH"'/" install_docker
+      fi
+    - bash tests/installer docker
+  artifacts:
+    paths:
+      - output
+  dependencies: [ ]
+
+LINT:bash:
   image: koalaman/shellcheck-alpine
   stage: lint
   before_script:
@@ -36,53 +78,62 @@ bash_scripts:
   script:
     - shellcheck install
     - shellcheck resources/*
+  dependencies: [ ]
 
-markdown:
+LINT:markdown:
   stage: lint
   image: node:latest
   before_script:
     - npm install -g markdownlint-cli
   script:
     - markdownlint .
+  dependencies: [ ]
 
-debian_buster:
+TEST:INSTALLER:DEBIAN:buster:
+  extends: .TEMPLATE:LOCAL:install
   image: debian:buster
-  <<: *build_template
 
-ubuntu_bionic:
+TEST:INSTALLER:UBUNTU:bionic:
+  extends: .TEMPLATE:LOCAL:install
   image: ubuntu:bionic
-  <<: *build_template
-ubuntu_focal:
-  image: ubuntu:focal
-  <<: *build_template
 
-code_quality:
-  stage: quality
-  image: docker:stable
-  allow_failure: true
+TEST:INSTALLER:UBUNTU:focal:
+  extends: .TEMPLATE:LOCAL:install
+  image: ubuntu:focal
+
+DEV:TEST:DOCKER:container:
+  extends: .TEMPLATE:DOCKER:container
   services:
-    - docker:stable-dind
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_TLS_CERTDIR: ""
-  script:
-    - |
-      if ! docker info &>/dev/null; then
-        if [ -z "$DOCKER_HOST" -a "$KUBERNETES_PORT" ]; then
-          export DOCKER_HOST='tcp://localhost:2375'
-        fi
-      fi
-    - docker run
-      --env SOURCE_CODE="$PWD"
-      --volume "$PWD":/code
-      --volume /var/run/docker.sock:/var/run/docker.sock
-      "registry.gitlab.com/gitlab-org/security-products/codequality:12-0-stable" /code
-  artifacts:
-    reports:
-      codequality: gl-code-quality-report.json
-  only:
-    - branches
-    - tags
-  except:
-    variables:
-      - $CODE_QUALITY_DISABLED
+    - name: mariadb:latest
+      alias: db
+    - name: registry.gitlab.com/acuparse/acuparse/dev:latest
+      alias: acuparse
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "master"'
+  dependencies: [ ]
+
+TEST:DOCKER:container:
+  extends: .TEMPLATE:DOCKER:container
+  services:
+    - name: mariadb:latest
+      alias: db
+    - name: registry.gitlab.com/acuparse/acuparse/master:latest
+      alias: acuparse
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+  dependencies: [ ]
+
+TEST:DOCKER:INSTALLER:DEBIAN:buster:
+  extends: .TEMPLATE:DOCKER:install
+  image: debian:buster
+
+TEST:DOCKER:INSTALLER:UBUNTU:bionic:
+  extends: .TEMPLATE:DOCKER:install
+  image: ubuntu:bionic
+
+TEST:DOCKER:INSTALLER:UBUNTU:focal:
+  extends: .TEMPLATE:DOCKER:install
+  image: ubuntu:focal
+
+include:
+  - template: Jobs/Code-Quality.gitlab-ci.yml

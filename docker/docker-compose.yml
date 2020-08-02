@@ -1,0 +1,68 @@
+##
+## Acuparse - AcuRite Access/smartHUB and IP Camera Data Processing, Display, and Upload.
+## @copyright Copyright (C) 2015-2020 Maxwell Power
+## @author Maxwell Power <max@acuparse.com>
+## @license MIT
+##
+## Permission is hereby granted, free of charge, to any person obtaining a copy
+## of this software and associated documentation files (the "Software"), to deal
+## in the Software without restriction, including without limitation the rights
+## to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+## copies of the Software, and to permit persons to whom the Software is
+## furnished to do so, subject to the following conditions:
+##
+## The above copyright notice and this permission notice shall be included in all
+## copies or substantial portions of the Software.
+##
+## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+## IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+## FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+## AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+## LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+## OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+## SOFTWARE.
+###
+
+version: '3.7'
+
+services:
+  db:
+    image: acuparse/mariadb
+    volumes:
+      - acuparse_sql:/var/lib/mysql
+      - /opt/acuparse/volumes/backups:/var/opt/acuparse/backups
+    restart: always
+    healthcheck:
+      test: mysql -u$$MYSQL_USER -p$$MYSQL_PASSWORD --batch --skip-column-names -e "SHOW DATABASES;" | grep $$MYSQL_DATABASE
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+    env_file:
+      - acuparse.env
+
+  acuparse:
+    depends_on:
+      - db
+    image: acuparse/acuparse
+    healthcheck:
+      test: curl --fail -s http://localhost/api/system/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - acuparse_config:/opt/acuparse/src/usr
+      - acuparse_ssl:/etc/letsencrypt
+      - /opt/acuparse/volumes/webcam:/opt/acuparse/src/img/cam
+      - /opt/acuparse/volumes/backups:/var/opt/acuparse/backups
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: always
+    env_file:
+      - acuparse.env
+
+volumes:
+  acuparse_sql:
+  acuparse_config:
+  acuparse_ssl:
