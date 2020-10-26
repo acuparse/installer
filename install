@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.0.5'
+SCRIPT_VERSION='2.0.6'
 
 ##
 # Acuparse Installation Script
@@ -26,7 +26,7 @@ SCRIPT_VERSION='2.0.5'
 # SOFTWARE.
 ##
 
-usage() {
+function usage() {
   printf "Usage: [-b Branch] [-s Silent] [-l LE] [-p DB PASS] [-t Timezone] [-e EXIM] [-d Debug]\n\n"
   printf "Default is interactive install. For scripted install, use [-s (Optional: -b branch -t \"region/timezone\" -p \"root,acuparse\" -l \"FQDN,EMAIL,REDIRECT(y/n),WWW(y/n)\" -e -a)]\n"
   exit 0
@@ -34,8 +34,8 @@ usage() {
 
 # Default Values
 SILENT=false
-GIT_BRANCH="master"
-ACUPARSE_DATABASE_PASSWORD=$(
+GIT_BRANCH="stable"
+ACUPARSE_DB_PASSWORD=$(
   head /dev/urandom | tr -dc A-Za-z0-9 | head -c 15
   echo ''
 )
@@ -61,7 +61,7 @@ while getopts ":db::sep::l::t::" opt; do
     IFS=,
     DBPW_ARRAY=("$OPTARG")
     MYSQL_ROOT_PASSWORD=${DBPW_ARRAY[0]}
-    ACUPARSE_DATABASE_PASSWORD=${DBPW_ARRAY[1]}
+    ACUPARSE_DB_PASSWORD=${DBPW_ARRAY[1]}
     SQL_PW_SET=true
     set +f
     IFS=
@@ -99,19 +99,25 @@ DIST=$(cat /etc/*release | grep '^ID=' | awk -F= '{ print $2 }')
 DEB_VERSION=$(cat /etc/*release | grep '^VERSION_ID=' | awk -F= '{ print $2 }')
 UBU_VERSION=$(cat /etc/*release | grep '^DISTRIB_RELEASE=' | awk -F= '{ print $2 }')
 
-run_acuparse_install() {
+function run_acuparse_install() {
   git init /opt/acuparse
   cd /opt/acuparse || exit 12
-  if [[ "$GIT_BRANCH" == "master" ]]; then
-    git remote add -t master -f origin https://github.com/acuparse/acuparse.git
+  git remote add -f origin https://github.com/acuparse/acuparse.git
+
+  if [[ "$GIT_BRANCH" == "stable" ]]; then
+    git branch --set-upstream-to=origin/stable stable
+    git checkout stable
   else
-    git remote add -t "${GIT_BRANCH}" -f origin https://gitlab.com/acuparse/acuparse.git
+    git branch --set-upstream-to=origin/stable stable
+    git branch --set-upstream-to=origin/"${GIT_BRANCH}" "${GIT_BRANCH}"
+    git checkout "${GIT_BRANCH}"
   fi
   git pull
-  chown -R www-data:www-data /opt/acuparse/src
+  chown -R www-data:www-data /opt/acuparse/src/pub
+  chown -R www-data:www-data /opt/acuparse/src/usr
 }
 
-run_exim_install() {
+function run_exim_install() {
   apt-get install exim4 -y
   printf "Launch exim configuration\n"
   if [[ "$SILENT" == false ]]; then
@@ -119,7 +125,7 @@ run_exim_install() {
   fi
 }
 
-run_apache_setup() {
+function run_apache_setup() {
   a2dissite 000-default.conf >/dev/null 2>&1
   rm /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/default-ssl.conf
   cp /opt/acuparse/config/acuparse.conf /etc/apache2/sites-available/
@@ -130,7 +136,7 @@ run_apache_setup() {
   a2ensite acuparse-ssl.conf >/dev/null 2>&1
 }
 
-install_le_cert() {
+function install_le_cert() {
   if [[ ("$LE_SECURE_WWW" == "y") || ("$LE_SECURE_WWW" == "Y") ]]; then
     LE_SECURE_DOMAINS=(-d "$LE_FQDN" -d www."$LE_FQDN")
     sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
@@ -160,7 +166,7 @@ install_le_cert() {
     apt-get install python-certbot-apache -y
   fi
   /etc/init.d/apache2 stop
-  if [[ "$GIT_BRANCH" != "master" ]]; then
+  if [[ "$GIT_BRANCH" != "stable" ]]; then
     printf "Requesting cert from STAGING server\n"
     certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}" --staging
   else
@@ -170,27 +176,31 @@ install_le_cert() {
   /etc/init.d/apache2 start
 }
 
-run_database_install() {
+function run_database_install() {
   /etc/init.d/mysql restart || exit 1
   if [[ "$SQL_PW_SET" == false ]]; then
     save_database_credentials
   fi
   mysql -uroot -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; FLUSH PRIVILEGES;"
-  mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; CREATE USER 'acuparse' IDENTIFIED BY '$ACUPARSE_DATABASE_PASSWORD'; GRANT ALL ON acuparse.* TO 'acuparse'; GRANT SUPER, EVENT ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
+  mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; CREATE USER 'acuparse' IDENTIFIED BY '$ACUPARSE_DB_PASSWORD'; GRANT ALL ON acuparse.* TO 'acuparse'; GRANT EVENT ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
   /etc/init.d/mysql restart || exit 1
 }
 
-save_database_credentials() {
+function save_database_credentials() {
   cat >~/.acuparse_db <<EOF
-ACUPARSE_DATABASE_PASSWORD=${ACUPARSE_DATABASE_PASSWORD}
+ACUPARSE_DB_PASSWORD=${ACUPARSE_DB_PASSWORD}
 EOF
 }
 
-run_timezone_set() {
+function run_timezone_set() {
   if [[ "$SILENT" == true ]]; then
-    ln -fs /usr/share/zoneinfo/"${TIMEZONE}" /etc/localtime
+    rm /etc/localtime
+    rm /etc/timezone
+    ln -s ../usr/share/zoneinfo/"${TIMEZONE}" /etc/localtime
+    echo "${TIMEZONE}" >/etc/timezone
     dpkg-reconfigure --frontend noninteractive tzdata
     /etc/init.d/rsyslog restart
+    export TZ="${TIMEZONE}"
   else
     printf "\n""${CYAN_TEXT}""Configuring your system timezone.""${RESET_TEXT}""\n"
     printf "${RED_TEXT}""When ready, Press [ENTER] to continue""${RESET_TEXT}""\n"
@@ -200,7 +210,7 @@ run_timezone_set() {
   fi
 }
 
-cleanup() {
+function cleanup() {
   exit_code="$?"
   if [[ "$exit_code" == 0 ]]; then
     # Install Complete
@@ -211,9 +221,14 @@ cleanup() {
     printf "SYSTEM IP: ""${BOLD_BLUE_TEXT}""${SYS_IP}""${RESET_TEXT}""\n"
     printf "EXTERNAL IP: ""${UNDERLINE_GREEN_TEXT}""${SYS_WAN}""${RESET_TEXT}""\n"
 
+    export MYSQL_HOSTNAME=localhost
+    export MYSQL_USER=acuparse
+    export MYSQL_DATABASE=acuparse
+    export MYSQL_PASSWORD="${ACUPARSE_DB_PASSWORD}"
+
     if [[ "$SQL_PW_SET" == false ]]; then
-      printf "ACUPARSE Database Password: ""${GREEN_TEXT}""${ACUPARSE_DATABASE_PASSWORD}""${RESET_TEXT}""\n"
-      printf "${YELLOW_TEXT}""Credentials saved to ~/credentials.txt""${RESET_TEXT}""\n"
+      printf "ACUPARSE Database Password: ""${GREEN_TEXT}""${ACUPARSE_DB_PASSWORD}""${RESET_TEXT}""\n"
+      printf "${YELLOW_TEXT}"Credentials saved to ~/.acuparse_db"${RESET_TEXT}""\n"
     fi
     printf "\n"
     exit 0
@@ -232,7 +247,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
 
   #Check for ROOT
   if [[ $(id -u) != "0" ]]; then
-    printf "${RED_TEXT}""ERROR: Installer must be run as root!""${RESET_TEXT}""\n"
+    printf "${RED_TEXT}""ERROR: Installer must be run as root/sudo!""${RESET_TEXT}""\n"
     exit 1
   fi
 
@@ -261,7 +276,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
     if [[ "$UBU_VERSION" == "20.04" ]]; then
       PHP_VERSION="7.4"
       printf "${GREEN_TEXT}""Ubuntu Focal(20.04) Successfully Detected!""${RESET_TEXT}""\n\n"
-     elif [[ "$UBU_VERSION" == "18.04" ]]; then
+    elif [[ "$UBU_VERSION" == "18.04" ]]; then
       PHP_VERSION="7.2"
       printf "${GREEN_TEXT}""Ubuntu Bionic(18.04) Successfully Detected!""${RESET_TEXT}""\n\n"
     else
@@ -281,7 +296,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
     printf "Enter NEW Acuparse database password, followed by [ENTER]:\n"
     printf "${YELLOW_TEXT}""Make a note of this password, you will need it to finish your install""${RESET_TEXT}""\n"
     stty -echo
-    read -r ACUPARSE_DATABASE_PASSWORD
+    read -r ACUPARSE_DB_PASSWORD
     stty echo
     SQL_PW_SET=true
 
@@ -329,9 +344,9 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   # Install CORE Packages
   apt-get update
   printf "${CYAN_TEXT}""Running Upgrade ...""${RESET_TEXT}""\n"
-  apt-get dist-upgrade -y
+  apt-get dist-upgrade -yqq
   printf "${CYAN_TEXT}""Install CORE Packages""${RESET_TEXT}""\n"
-  apt-get install git ntp dnsutils imagemagick apache2 default-mysql-server -y || exit 1
+  apt-get install git ntp dnsutils imagemagick apache2 default-mysql-server rsyslog cron -yqq || exit 1
   /etc/init.d/mysql restart || exit 1
   /etc/init.d/apache2 restart || exit 1
   printf "${UNDERLINE_GREEN_TEXT}""DONE: CORE Packages""${RESET_TEXT}""\n\n"
@@ -341,16 +356,16 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   if [[ "$PHP_VERSION" == "7.4" ]]; then
     printf "${CYAN_TEXT}""Installing PHP7.4.""${RESET_TEXT}""\n"
     if [[ "$SILENT" == false ]]; then sleep 1; fi
-    apt-get install php7.4 libapache2-mod-php7.4 php7.4-mysql php7.4-gd php7.4-curl php7.4-json php7.4-cli php7.4-common -y || exit 1
+    apt-get install php7.4 libapache2-mod-php7.4 php7.4-mysql php7.4-gd php7.4-curl php7.4-json php7.4-cli php7.4-common -yqq || exit 1
     printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP7.4.""${RESET_TEXT}""\n"
   elif [[ "$PHP_VERSION" == "7.3" ]]; then
     printf "${CYAN_TEXT}""Installing PHP7.3.""${RESET_TEXT}""\n"
     if [[ "$SILENT" == false ]]; then sleep 1; fi
-    apt-get install php7.3 libapache2-mod-php7.3 php7.3-mysql php7.3-gd php7.3-curl php7.3-json php7.3-cli php7.3-common -y || exit 1
+    apt-get install php7.3 libapache2-mod-php7.3 php7.3-mysql php7.3-gd php7.3-curl php7.3-json php7.3-cli php7.3-common -yqq || exit 1
     printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP7.3.""${RESET_TEXT}""\n"
   elif [[ "$PHP_VERSION" == "7.2" ]]; then
     printf "${CYAN_TEXT}""Installing PHP7.2.""${RESET_TEXT}""\n"
-    apt-get install php7.2 libapache2-mod-php7.2 php7.2-mysql php7.2-gd php7.2-curl php7.2-json php7.2-cli php7.2-common -y || exit 1
+    apt-get install php7.2 libapache2-mod-php7.2 php7.2-mysql php7.2-gd php7.2-curl php7.2-json php7.2-cli php7.2-common -yqq || exit 1
     printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP7.2.""${RESET_TEXT}""\n"
   else
     printf "${RED_TEXT}""ERROR: PHP INSTALL FAILED! Can't determine version to install.""${RESET_TEXT}""\n"
@@ -410,7 +425,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   if [[ "$SILENT" == false ]]; then sleep 1; fi
   (
     crontab -l 2>/dev/null
-    echo "* * * * * php /opt/acuparse/cron/cron.php > /opt/acuparse/logs/cron.log 2>&1"
+    echo "* * * * * /usr/bin/php /opt/acuparse/cron/cron.php > /opt/acuparse/logs/cron.log 2>&1"
   ) | crontab -
   printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing Cron""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
@@ -430,6 +445,6 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
 
 # No Supported OS
 else
-  printf "${RED_TEXT}""ERROR: This script is designed to be run on a freshly installed Debian/Raspbian Buster(10) or Ubuntu 18.04 system""${RESET_TEXT}""\n"
+  printf "${RED_TEXT}""ERROR: This script is designed to be run on a freshly installed Debian/Raspbian Buster(10) or Ubuntu 20.04/18.04 system""${RESET_TEXT}""\n"
   exit 1
 fi

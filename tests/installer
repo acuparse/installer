@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -x
+set -e
+##
+# Acuparse Installation CI Test Script
+# @copyright Copyright (C) 2015-2020 Maxwell Power
+# @author Maxwell Power <max@acuparse.com>
+# @license MIT
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+##
+
+TEST_READING="dateutc=2020-01-01T00:00:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=30&uvindex=3&lightintensity=90000&measured_light_seconds=50000&strikecount=100&interference=0&last_strike_ts=2020-01-01T00:00:00&last_strike_distance=1&humidity=60&tempf=100.5&windspeedmph=65&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=25&heatindex=50.5&feelslike=50.5&windchill=50.5&dewptf=25.5&dailyrainin=3.75&rainin=1.25"
+
+function TestFullInstall() {
+  mkdir -p output/api
+  mkdir -p output/logs
+  if [ "$UPSTREAM_BRANCH" != "" ]; then bash install -b "$UPSTREAM_BRANCH" -s -d | tee output/logs/acuparse.txt; elif [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -e -l """$LE_FQDN"",""$EMAIL"",n,n"; else bash install -s -d | tee output/logs/acuparse.txt; fi
+  service rsyslog start
+  service cron start
+  export "$(cat ~/.acuparse_db)"
+  {
+    curl -d 'mysql[host]=localhost&mysql[database]=acuparse&mysql[username]=acuparse&mysql[password]='"$ACUPARSE_DB_PASSWORD"'&mysql[trim]=1&station[access_mac]=0C7D0C5DC14E&station[sensor_atlas]=00000001' 'http://localhost/admin/install/?database&ci'
+    \
+    curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" 'http://localhost/admin/install/?account&do'
+    \
+    curl -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING"
+  } >output/logs/curl.txt
+
+  php /opt/acuparse/cron/cron.php >output/logs/cron.txt 2>&1
+
+  {
+    curl -o output/api/health.json http://localhost/api/system/health
+    \
+    curl -o output/api/dashboard.json http://localhost/api/v1/json/dashboard/
+    \
+    curl -o output/api/archive.json http://localhost/api/v1/json/archive/
+    \
+    curl -o output/api/dashboard.html http://localhost/api/v1/html/dashboard/
+    \
+    curl -o output/api/archive.html http://localhost/api/v1/html/archive/
+  } >output/logs/curl.txt
+
+  crontab -l >output/crontab.txt || true
+  mysqldump -uacuparse -p"$ACUPARSE_DB_PASSWORD" acuparse >output/database.txt
+  cat /opt/acuparse/src/usr/config.php >output/config.txt || true
+  cat /var/log/syslog >output/logs/syslog.txt || true
+  cat /var/log/apache2/access.log >output/logs/access.txt || true
+  cat /var/log/apache2/error.log >output/logs/error.txt || true
+}
+
+function TestContainerInstall() {
+  mkdir -p output/api
+  mkdir -p output/logs
+
+  {
+    curl -d 'mysql[host]='"$MYSQL_HOSTNAME"'&mysql[database]='"$MYSQL_DATABASE"'&mysql[username]='"$MYSQL_USER"'&mysql[password]='"$MYSQL_PASSWORD"'&mysql[trim]=1&station[access_mac]=0C7D0C5DC14E&station[sensor_atlas]=00000001' 'http://acuparse/admin/install/?database&ci'
+    \
+    curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" 'http://acuparse/admin/install/?account&do'
+    \
+    curl -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING"
+  } >>output/logs/curl.txt
+
+  {
+    curl -o output/api/health.json http://acuparse/api/system/health
+    \
+    curl -o output/api/dashboard.json http://acuparse/api/v1/json/dashboard/
+    \
+    curl -o output/api/archive.json http://acuparse/api/v1/json/archive/
+    \
+    curl -o output/api/dashboard.html http://acuparse/api/v1/html/dashboard/
+    \
+    curl -o output/api/archive.html http://acuparse/api/v1/html/archive/
+  } >>output/logs/curl.txt
+  mysqldump -hdb -uacuparse -p"$MYSQL_PASSWORD" acuparse >output/database.txt
+}
+
+function TestDockerInstall() {
+  mkdir -p output/config
+  bash install_docker full ci
+  cat /opt/acuparse/acuparse.env >>output/config/acuparse.txt
+}
+
+if [ "$1" = 'container' ]; then
+  echo 'Testing Acuparse Container'
+  TestContainerInstall
+elif [ "$1" = 'docker' ]; then
+  echo 'Testing Acuparse Docker Install'
+  TestDockerInstall
+else
+  echo 'Testing Acuparse Full Install'
+  TestFullInstall
+fi

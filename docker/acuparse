@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+
+##
+# Acuparse Docker Compose Management Script
+# @copyright Copyright (C) 2015-2020 Maxwell Power
+# @author Maxwell Power <max@acuparse.com>
+# @license MIT
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+##
+
+function usage() {
+  printf "Usage: start / restart / stop / update / logs / console / dbconsole\n"
+  exit 0
+}
+
+function start() {
+  docker-compose -f /opt/acuparse/docker-compose.yml up -d
+}
+
+function restart() {
+  docker-compose -f /opt/acuparse/docker-compose.yml down
+  docker-compose -f /opt/acuparse/docker-compose.yml up -d
+}
+
+function stop() {
+  docker-compose -f /opt/acuparse/docker-compose.yml down
+}
+
+function destroy() {
+  docker-compose -f /opt/acuparse/docker-compose.yml down -v
+}
+
+function update() {
+  docker-compose -f /opt/acuparse/docker-compose.yml pull
+  docker-compose -f /opt/acuparse/docker-compose.yml up -d
+  curl https://gitlab.com/acuparse/installer/raw/master/docker/acuparse -o /usr/local/bin/acuparse
+  curl https://gitlab.com/acuparse/installer/raw/master/docker/docker-compose.yml -o /opt/acuparse/docker-compose.yml
+  chmod +x /usr/bin/local/acuparse
+}
+
+function logs() {
+  docker-compose -f /opt/acuparse/docker-compose.yml logs -f
+}
+
+function acuparseConsole() {
+  docker-compose -f /opt/acuparse/docker-compose.yml exec acuparse bash
+}
+
+function dbConsole() {
+  docker-compose -f /opt/acuparse/docker-compose.yml exec db bash
+}
+
+function status() {
+  docker-compose -f /opt/acuparse/docker-compose.yml top
+}
+
+if [ "$1" == 'start' ]; then
+  echo "Starting Acuparse ..."
+  start
+elif [ "$1" == 'restart' ]; then
+  echo "Restarting Acuparse ..."
+  restart
+elif [ "$1" == 'stop' ]; then
+  echo "Stopping Acuparse ..."
+  stop
+elif [ "$1" == 'destroy' ]; then
+  echo "Destroying Acuparse ..."
+  destroy
+elif [ "$1" == 'update' ]; then
+  echo "Updating Acuparse ..."
+  update
+elif [ "$1" == 'logs' ]; then
+  echo "Loading Acuparse Logs ..."
+  logs
+elif [ "$1" == 'console' ]; then
+  echo "Starting Acuparse Console ..."
+  acuparseConsole
+elif [ "$1" == 'dbconsole' ]; then
+  echo "Starting Database Console ..."
+  dbConsole
+elif [ "$1" == 'status' ]; then
+  echo "Getting Service Status ..."
+  status
+else
+  usage
+fi
