@@ -44,6 +44,7 @@ function UpdateGitConfig() {
   git reset v2.10.0
   git remote remove origin
   git remote add -f origin https://github.com/acuparse/acuparse.git
+  git fetch
   git branch --set-upstream-to=origin/"$BRANCH" "$BRANCH"
   git checkout "$BRANCH" && git pull
 }
