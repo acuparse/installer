@@ -117,7 +117,7 @@ TEST:DOCKER:container:
   services:
     - name: mariadb:latest
       alias: db
-    - name: registry.gitlab.com/acuparse/acuparse/master:latest
+    - name: registry.gitlab.com/acuparse/acuparse:latest
       alias: acuparse
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
