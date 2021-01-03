@@ -26,7 +26,7 @@
 ##
 
 function usage() {
-  printf "Usage: start / restart / stop / update / logs / console / dbconsole\n"
+  printf "Usage: start / restart / stop / status / destroy / update / logs / console / dbconsole\n"
   exit 0
 }
 
@@ -48,11 +48,11 @@ function destroy() {
 }
 
 function update() {
-  docker-compose -f /opt/acuparse/docker-compose.yml pull
-  docker-compose -f /opt/acuparse/docker-compose.yml up -d
   curl https://gitlab.com/acuparse/installer/raw/master/docker/acuparse -o /usr/local/bin/acuparse
   curl https://gitlab.com/acuparse/installer/raw/master/docker/docker-compose.yml -o /opt/acuparse/docker-compose.yml
-  chmod +x /usr/bin/local/acuparse
+  chmod +x /usr/local/bin/acuparse
+  docker-compose -f /opt/acuparse/docker-compose.yml pull
+  docker-compose -f /opt/acuparse/docker-compose.yml up -d
 }
 
 function logs() {
@@ -84,8 +84,16 @@ elif [ "$1" == 'destroy' ]; then
   echo "Destroying Acuparse ..."
   destroy
 elif [ "$1" == 'update' ]; then
-  echo "Updating Acuparse ..."
-  update
+  if [ "$EUID" -ne 0 ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    NC='\033[0m'
+    printf "${RED}Update must be run as root!\n${NC}Retry with:\n${GREEN}sudo acuparse update${NC}\n"
+    exit
+  else
+    echo "Updating Acuparse ..."
+    update
+  fi
 elif [ "$1" == 'logs' ]; then
   echo "Loading Acuparse Logs ..."
   logs
