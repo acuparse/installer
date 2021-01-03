@@ -3,7 +3,7 @@ set -x
 set -e
 ##
 # Acuparse Installation CI Test Script
-# @copyright Copyright (C) 2015-2020 Maxwell Power
+# @copyright Copyright (C) 2015-2021 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #
