@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.0.6'
+SCRIPT_VERSION='2.0.7'
 
 ##
 # Acuparse Installation Script
@@ -26,7 +26,7 @@ SCRIPT_VERSION='2.0.6'
 # SOFTWARE.
 ##
 
-function usage() {
+function _usage() {
   printf "Usage: [-b Branch] [-s Silent] [-l LE] [-p DB PASS] [-t Timezone] [-e EXIM] [-d Debug]\n\n"
   printf "Default is interactive install. For scripted install, use [-s (Optional: -b branch -t \"region/timezone\" -p \"root,acuparse\" -l \"FQDN,EMAIL,REDIRECT(y/n),WWW(y/n)\" -e -a)]\n"
   exit 0
@@ -83,7 +83,7 @@ while getopts ":db::sep::l::t::" opt; do
     TZ_OPT_SET=true
     ;;
   \?)
-    usage
+    _usage
     exit 0
     ;;
   esac
@@ -99,7 +99,7 @@ DIST=$(cat /etc/*release | grep '^ID=' | awk -F= '{ print $2 }')
 DEB_VERSION=$(cat /etc/*release | grep '^VERSION_ID=' | awk -F= '{ print $2 }')
 UBU_VERSION=$(cat /etc/*release | grep '^DISTRIB_RELEASE=' | awk -F= '{ print $2 }')
 
-function run_acuparse_install() {
+function _run_acuparse_install() {
   git init /opt/acuparse
   cd /opt/acuparse || exit 12
   git remote add -f origin https://github.com/acuparse/acuparse.git
@@ -117,7 +117,7 @@ function run_acuparse_install() {
   chown -R www-data:www-data /opt/acuparse/src/usr
 }
 
-function run_exim_install() {
+function _run_exim_install() {
   apt-get install exim4 -y
   printf "Launch exim configuration\n"
   if [[ "$SILENT" == false ]]; then
@@ -125,7 +125,7 @@ function run_exim_install() {
   fi
 }
 
-function run_apache_setup() {
+function _run_apache_setup() {
   a2dissite 000-default.conf >/dev/null 2>&1
   rm /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/default-ssl.conf
   cp /opt/acuparse/config/acuparse.conf /etc/apache2/sites-available/
@@ -136,7 +136,7 @@ function run_apache_setup() {
   a2ensite acuparse-ssl.conf >/dev/null 2>&1
 }
 
-function install_le_cert() {
+function _install_le_cert() {
   if [[ ("$LE_SECURE_WWW" == "y") || ("$LE_SECURE_WWW" == "Y") ]]; then
     LE_SECURE_DOMAINS=(-d "$LE_FQDN" -d www."$LE_FQDN")
     sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
@@ -176,23 +176,23 @@ function install_le_cert() {
   /etc/init.d/apache2 start
 }
 
-function run_database_install() {
-  /etc/init.d/mysql restart || exit 1
-  if [[ "$SQL_PW_SET" == false ]]; then
-    save_database_credentials
-  fi
-  mysql -uroot -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; FLUSH PRIVILEGES;"
-  mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; CREATE USER 'acuparse' IDENTIFIED BY '$ACUPARSE_DB_PASSWORD'; GRANT ALL ON acuparse.* TO 'acuparse'; GRANT EVENT ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
-  /etc/init.d/mysql restart || exit 1
-}
-
-function save_database_credentials() {
+function __save_database_credentials() {
   cat >~/.acuparse_db <<EOF
 ACUPARSE_DB_PASSWORD=${ACUPARSE_DB_PASSWORD}
 EOF
 }
 
-function run_timezone_set() {
+function _run_database_install() {
+  /etc/init.d/mysql restart || exit 1
+  if [[ "$SQL_PW_SET" == false ]]; then
+    __save_database_credentials
+  fi
+  mysql -uroot -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; FLUSH PRIVILEGES;"
+  mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; CREATE USER 'acuparse' IDENTIFIED BY '$ACUPARSE_DB_PASSWORD'; GRANT ALL ON acuparse.* TO 'acuparse'; GRANT EVENT ON acuparse.* TO 'acuparse'; GRANT RELOAD ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
+  /etc/init.d/mysql restart || exit 1
+}
+
+function _run_timezone_set() {
   if [[ "$SILENT" == true ]]; then
     rm /etc/localtime
     rm /etc/timezone
@@ -210,7 +210,7 @@ function run_timezone_set() {
   fi
 }
 
-function cleanup() {
+function _cleanup() {
   exit_code="$?"
   if [[ "$exit_code" == 0 ]]; then
     # Install Complete
@@ -323,7 +323,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
       printf "Redirect HTTP to HTTPS?, y/N, followed by [ENTER]:\n"
       read -r LE_REDIRECT_ENABLED
     fi
-    run_timezone_set
+    _run_timezone_set
     printf "\n""${BOLD_GREEN_TEXT}""#######################\n# Installation Ready! #\n#######################""${RESET_TEXT}""\n\n"
     printf "This process will install and configure packages.\nThis is your last chance to exit.\n\n"
     printf "${RED_TEXT}""When ready, Press [ENTER] to continue""${RESET_TEXT}""\n"
@@ -331,11 +331,11 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   fi
 
   if [[ "$TZ_OPT_SET" == true ]]; then
-    run_timezone_set
+    _run_timezone_set
   fi
 
   # Begin Install
-  trap cleanup exit
+  trap _cleanup exit
   printf "${PURPLE_TEXT}""BEGIN: Starting Acuparse Installation""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
   printf "${CYAN_TEXT}""BEGIN: Installing Packages""${RESET_TEXT}""\n"
@@ -377,7 +377,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   if [[ ("$EXIM_ENABLED" == "y") || ("$EXIM_ENABLED" == "Y") ]]; then
     printf "${CYAN_TEXT}""Installing Exim mail server""${RESET_TEXT}""\n"
     if [[ "$SILENT" == false ]]; then sleep 1; fi
-    run_exim_install
+    _run_exim_install
     printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing Exim mail server""${RESET_TEXT}""\n"
     if [[ "$SILENT" == false ]]; then sleep 1; fi
   fi
@@ -387,18 +387,18 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   # Acuparse Source
   printf "${CYAN_TEXT}""BEGIN: Install Acuparse via GIT""${RESET_TEXT}""\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
-  run_acuparse_install || exit 1
+  _run_acuparse_install || exit 1
   printf "${UNDERLINE_GREEN_TEXT}""DONE: Install Acuparse via GIT""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 
   # Apache Config
   printf "${CYAN_TEXT}""BEGIN: Configuring Apache""${RESET_TEXT}""\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
-  run_apache_setup || exit 1
+  _run_apache_setup || exit 1
   if [[ ("$LE_SSL_ENABLED" == "y") || ("$LE_SSL_ENABLED" == "Y") ]]; then
     printf "${CYAN_TEXT}""Deploying Let's Encrypt Certificate""${RESET_TEXT}""\n"
     if [[ "$SILENT" == false ]]; then sleep 1; fi
-    install_le_cert
+    _install_le_cert
     printf "${UNDERLINE_GREEN_TEXT}""DONE: Deploying Let's Encrypt Certificate""${RESET_TEXT}""\n"
   fi
   /etc/init.d/apache2 restart || exit 1
@@ -408,7 +408,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   # phpMyAdmin
   if [[ ("$PHPMYADMIN_ENABLED" == "y") || ("$PHPMYADMIN_ENABLED" == "Y") ]]; then
     printf "${CYAN_TEXT}""Installing phpMyAdmin""${RESET_TEXT}""\n"
-    run_phpmyadmin_install
+    _run_phpmyadmin_install
     printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing phpMyAdmin""${RESET_TEXT}""\n"
     if [[ "$SILENT" == false ]]; then sleep 1; fi
   fi
@@ -416,7 +416,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   # Database Config
   printf "${CYAN_TEXT}""BEGIN: Creating Acuparse Database""${RESET_TEXT}""\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
-  run_database_install || exit 1
+  _run_database_install || exit 1
   printf "${UNDERLINE_GREEN_TEXT}""DONE: Creating Acuparse Database""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 

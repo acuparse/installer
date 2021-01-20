@@ -25,29 +25,29 @@
 # SOFTWARE.
 ##
 
-function usage() {
+function _usage() {
   printf "Usage: start / restart / stop / status / destroy / update / logs / console / dbconsole\n"
   exit 0
 }
 
-function start() {
+function _start() {
   docker-compose -f /opt/acuparse/docker-compose.yml up -d
 }
 
-function restart() {
+function _restart() {
   docker-compose -f /opt/acuparse/docker-compose.yml down
   docker-compose -f /opt/acuparse/docker-compose.yml up -d
 }
 
-function stop() {
+function _stop() {
   docker-compose -f /opt/acuparse/docker-compose.yml down
 }
 
-function destroy() {
+function _destroy() {
   docker-compose -f /opt/acuparse/docker-compose.yml down -v
 }
 
-function update() {
+function _update() {
   curl https://gitlab.com/acuparse/installer/raw/master/docker/acuparse -o /usr/local/bin/acuparse
   curl https://gitlab.com/acuparse/installer/raw/master/docker/docker-compose.yml -o /opt/acuparse/docker-compose.yml
   chmod +x /usr/local/bin/acuparse
@@ -55,34 +55,34 @@ function update() {
   docker-compose -f /opt/acuparse/docker-compose.yml up -d
 }
 
-function logs() {
+function _logs() {
   docker-compose -f /opt/acuparse/docker-compose.yml logs -f
 }
 
-function acuparseConsole() {
+function _acuparseConsole() {
   docker-compose -f /opt/acuparse/docker-compose.yml exec acuparse bash
 }
 
-function dbConsole() {
+function _dbConsole() {
   docker-compose -f /opt/acuparse/docker-compose.yml exec db bash
 }
 
-function status() {
+function _status() {
   docker-compose -f /opt/acuparse/docker-compose.yml top
 }
 
 if [ "$1" == 'start' ]; then
   echo "Starting Acuparse ..."
-  start
+  _start
 elif [ "$1" == 'restart' ]; then
   echo "Restarting Acuparse ..."
-  restart
+  _restart
 elif [ "$1" == 'stop' ]; then
   echo "Stopping Acuparse ..."
-  stop
+  _stop
 elif [ "$1" == 'destroy' ]; then
   echo "Destroying Acuparse ..."
-  destroy
+  _destroy
 elif [ "$1" == 'update' ]; then
   if [ "$EUID" -ne 0 ]; then
     RED='\033[0;31m'
@@ -92,20 +92,20 @@ elif [ "$1" == 'update' ]; then
     exit
   else
     echo "Updating Acuparse ..."
-    update
+    _update
   fi
 elif [ "$1" == 'logs' ]; then
   echo "Loading Acuparse Logs ..."
-  logs
+  _logs
 elif [ "$1" == 'console' ]; then
   echo "Starting Acuparse Console ..."
-  acuparseConsole
+  _acuparseConsole
 elif [ "$1" == 'dbconsole' ]; then
   echo "Starting Database Console ..."
-  dbConsole
+  _dbConsole
 elif [ "$1" == 'status' ]; then
   echo "Getting Service Status ..."
-  status
+  _status
 else
-  usage
+  _usage
 fi
