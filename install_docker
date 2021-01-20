@@ -32,7 +32,7 @@ DIST=$(cat /etc/*release | grep '^ID=' | awk -F= '{ print $2 }')
 # Set Text Colours
 GREEN_TEXT='\033[0;32m' BOLD_GREEN_TEXT='\033[1;32m' UNDERLINE_GREEN_TEXT='\033[4;32m' HIGHLIGHT_GREEN_TEXT='\033[7;32m' RED_TEXT='\033[0;31m' BOLD_RED_TEXT='\033[1;31m' UNDERLINE_RED_TEXT='\033[4;31m' BLUE_TEXT='\033[0;34m' BOLD_BLUE_TEXT='\033[1;34m' UNDERLINE_BLUE_TEXT='\033[4;34m' YELLOW_TEXT='\033[0;33m' BOLD_YELLOW_TEXT='\033[1;33m' UNDERLINE_YELLOW_TEXT='\033[4;33m' PURPLE_TEXT='\033[0;35m' BOLD_PURPLE_TEXT='\033[1;35m' UNDERLINE_PURPLE_TEXT='\033[4;35m' CYAN_TEXT="\033[0;36m" BOLD_CYAN_TEXT="\033[1;36m" UNDERLINE_CYAN_TEXT="\033[4;36m" RESET_TEXT='\033[0m'
 
-function installDocker() {
+function _install_docker() {
   printf "${GREEN_TEXT}""Installing Docker""${RESET_TEXT}""\n"
 
   if [[ ("$DIST" == "debian") || ("$DIST" == "raspbian") ]]; then
@@ -68,7 +68,7 @@ function installDocker() {
   fi
 }
 
-function installDockerCompose() {
+function _install_docker_compose() {
   printf "${GREEN_TEXT}""Installing Docker Compose""${RESET_TEXT}""\n"
 
   if [[ ("$DIST" == "debian") || ("$DIST" == "ubunutu") ]]; then
@@ -80,7 +80,7 @@ function installDockerCompose() {
   fi
 }
 
-function loadDockerComposeConfig() {
+function _load_docker_compose_config() {
   printf "${GREEN_TEXT}""Downloading Docker Compose Configuration""${RESET_TEXT}""\n"
 
   mkdir -p /opt/acuparse
@@ -92,7 +92,7 @@ function loadDockerComposeConfig() {
   chmod +x /usr/local/bin/acuparse
 }
 
-function getEnvironment() {
+function _get_environment() {
   printf "${GREEN_TEXT}""Configure Your Environment""${RESET_TEXT}""\n"
 
   printf "${BLUE_TEXT}""Set MySQL Root Password, followed by [ENTER]:""${RESET_TEXT}""\n"
@@ -105,13 +105,13 @@ function getEnvironment() {
   read -r TZ
 }
 
-function updateEnvironment() {
+function _update_environment() {
   sed -i "s/MYSQL_ROOT_PASSWORD=STRONG_PASSWORD/MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD/" acuparse.env
   sed -i "s/MYSQL_PASSWORD=STRONG_PASSWORD/MYSQL_PASSWORD=$MYSQL_PASSWORD/" acuparse.env
   sed -i "s|TZ=Etc/UTC|TZ=$TZ|" acuparse.env
 
 }
-function usageDetails() {
+function _usage_details() {
   printf "${UNDERLINE_YELLOW_TEXT}""To enable Lets Encrypt, edit /opt/acuparse/acuparse.env""${RESET_TEXT}""\n\n"
   printf "${YELLOW_TEXT}""Start Acuparse by running""${RESET_TEXT}""\n"
   printf "${BOLD_RED_TEXT}""sudo acuparse start""${RESET_TEXT}""\n\n"
@@ -127,22 +127,22 @@ fi
 
 printf "${PURPLE_TEXT}""Starting Acuparse Docker Install""${RESET_TEXT}""\n\n"
 if [ "$1" == 'full' ]; then
-  installDocker
-  installDockerCompose
+  _install_docker
+  _install_docker_compose
 elif [ "$1" == 'compose' ]; then
-  installDockerCompose
+  _install_docker_compose
 fi
 
-loadDockerComposeConfig
+_load_docker_compose_config
 
 if [ "$2" == 'ci' ]; then
   MYSQL_ROOT_PASSWORD="CITEST"
   MYSQL_PASSWORD="CITEST"
   TZ="America/Arizona"
 else
-  getEnvironment
+  _get_environment
 fi
-updateEnvironment
+_update_environment
 
 printf "${PURPLE_TEXT}""DONE: Acuparse Docker Installation Complete!""${RESET_TEXT}""\n\n"
-usageDetails
+_usage_details

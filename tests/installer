@@ -30,7 +30,7 @@ set -e
 
 TEST_READING="dateutc=2021-01-01T00:00:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=30&uvindex=3&lightintensity=90000&measured_light_seconds=50000&strikecount=100&interference=0&last_strike_ts=2020-01-01T00:00:00&last_strike_distance=1&humidity=60&tempf=100.5&windspeedmph=65&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=25&heatindex=50.5&feelslike=50.5&windchill=50.5&dewptf=25.5&dailyrainin=3.75&rainin=1.25"
 
-function TestFullInstall() {
+function _test_full_install() {
   mkdir -p output/api
   mkdir -p output/logs
   if [ "$UPSTREAM_BRANCH" != "" ]; then bash install -b "$UPSTREAM_BRANCH" -s -d | tee output/logs/acuparse.txt; elif [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -e -l """$LE_FQDN"",""$EMAIL"",n,n"; else bash install -s -d | tee output/logs/acuparse.txt; fi
@@ -68,7 +68,7 @@ function TestFullInstall() {
   cat /opt/acuparse/logs/cron.log >output/cron.txt
 }
 
-function TestContainerInstall() {
+function _test_container_install() {
   mkdir -p output/api
   mkdir -p output/logs
 
@@ -96,7 +96,7 @@ function TestContainerInstall() {
   mysqldump -hdb -uacuparse -p"$MYSQL_PASSWORD" acuparse >output/database.txt
 }
 
-function TestDockerInstall() {
+function _test_docker_install() {
   mkdir -p output/config
   bash install_docker full ci
   cat /opt/acuparse/acuparse.env >>output/config/acuparse.txt
@@ -104,11 +104,11 @@ function TestDockerInstall() {
 
 if [ "$1" = 'container' ]; then
   echo 'Testing Acuparse Container'
-  TestContainerInstall
+  _test_container_install
 elif [ "$1" = 'docker' ]; then
   echo 'Testing Acuparse Docker Install'
-  TestDockerInstall
+  _test_docker_install
 else
   echo 'Testing Acuparse Full Install'
-  TestFullInstall
+  _test_full_install
 fi

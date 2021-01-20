@@ -30,7 +30,7 @@ BRANCH='stable'
 # Set Text Colours
 GREEN_TEXT='\033[0;32m' RED_TEXT='\033[0;31m' RESET_TEXT='\033[0m'
 
-function UpdateApacheConfig() {
+function _update_apache_config() {
   echo "Updating Apache Config"
   sed -i 's/AllowOverride None/AllowOverride FileInfo\n        ServerSignature Off/' /etc/apache2/sites-available/acuparse.conf
   sed -i 's/AllowOverride None/AllowOverride FileInfo\n        ServerSignature Off/' /etc/apache2/sites-available/acuparse-ssl.conf
@@ -38,7 +38,7 @@ function UpdateApacheConfig() {
   printf '\nServerTokens Prod\nFileETag None' >>/etc/apache2/sites-available/acuparse-ssl.conf
 }
 
-function UpdateGitConfig() {
+function _update_git_config() {
   echo "Updating GIT Config"
   cd /opt/acuparse || exit 1
   git reset v2.10.0
@@ -97,8 +97,8 @@ if [ ! "$READY" ]; then
       fi
     fi
 
-    UpdateApacheConfig
-    UpdateGitConfig
+    _update_apache_config
+    _update_git_config
 
   # No Supported OS
   else
