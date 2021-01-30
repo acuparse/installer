@@ -60,7 +60,7 @@ function _test_full_install() {
   } >output/logs/curl.txt
 
   crontab -l >output/crontab.txt || true
-  mysqldump -uacuparse -p"$ACUPARSE_DB_PASSWORD" acuparse >output/database.txt
+  mysqldump --no-tablespaces -uacuparse -p"$ACUPARSE_DB_PASSWORD" acuparse >output/database.txt
   cat /opt/acuparse/src/usr/config.php >output/config.txt || true
   cat /var/log/syslog >output/logs/syslog.txt || true
   cat /var/log/apache2/access.log >output/logs/access.txt || true
@@ -93,7 +93,7 @@ function _test_container_install() {
     \
     curl -o output/api/archive.html http://acuparse/api/v1/html/archive/
   } >>output/logs/curl.txt
-  mysqldump -hdb -uacuparse -p"$MYSQL_PASSWORD" acuparse >output/database.txt
+  mysqldump --no-tablespaces -hdb -uacuparse -p"$MYSQL_PASSWORD" acuparse >output/database.txt
 }
 
 function _test_docker_install() {
