@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.0.7'
+SCRIPT_VERSION='2.0.8'
 
 ##
 # Acuparse Installation Script
@@ -188,7 +188,7 @@ function _run_database_install() {
     __save_database_credentials
   fi
   mysql -uroot -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; FLUSH PRIVILEGES;"
-  mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; CREATE USER 'acuparse' IDENTIFIED BY '$ACUPARSE_DB_PASSWORD'; GRANT ALL ON acuparse.* TO 'acuparse'; GRANT EVENT ON acuparse.* TO 'acuparse'; GRANT RELOAD ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
+  mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; CREATE USER 'acuparse' IDENTIFIED BY '$ACUPARSE_DB_PASSWORD'; GRANT ALL ON acuparse.* TO 'acuparse'; GRANT EVENT ON acuparse.* TO 'acuparse'; GRANT RELOAD ON *.* TO 'acuparse'; GRANT SUPER ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
   /etc/init.d/mysql restart || exit 1
 }
 
