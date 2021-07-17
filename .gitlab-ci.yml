@@ -93,6 +93,11 @@ TEST:INSTALLER:DEBIAN:buster:
   extends: .TEMPLATE:LOCAL:install
   image: debian:buster
 
+TEST:INSTALLER:DEBIAN:bullseye:
+  extends: .TEMPLATE:LOCAL:install
+  image: debian:bullseye
+  allow_failure: true
+
 TEST:INSTALLER:UBUNTU:bionic:
   extends: .TEMPLATE:LOCAL:install
   image: ubuntu:bionic
@@ -126,6 +131,10 @@ TEST:DOCKER:container:
 TEST:DOCKER:INSTALLER:DEBIAN:buster:
   extends: .TEMPLATE:DOCKER:install
   image: debian:buster
+
+TEST:DOCKER:INSTALLER:DEBIAN:bullseye:
+  extends: .TEMPLATE:DOCKER:install
+  image: debian:bullseye
 
 TEST:DOCKER:INSTALLER:UBUNTU:bionic:
   extends: .TEMPLATE:DOCKER:install

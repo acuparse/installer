@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+COMPOSE_VERSION='1.29.2'
+
 ##
 # Acuparse Docker Compose Management Script
 # @copyright Copyright (C) 2015-2021 Maxwell Power
@@ -26,7 +28,7 @@
 ##
 
 function _usage() {
-  printf "Usage: start / restart / stop / status / destroy / update / logs / console / dbconsole\n"
+  printf "Usage: start / restart / stop / status / destroy / update / logs / console / dbconsole / update_compose\n"
   exit 0
 }
 
@@ -71,6 +73,12 @@ function _status() {
   docker-compose -f /opt/acuparse/docker-compose.yml top
 }
 
+function _updateCompose() {
+  curl -L "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  chmod +x /usr/local/bin/docker-compose
+  docker-compose -f /opt/acuparse/docker-compose.yml up -d
+}
+
 if [ "$1" == 'start' ]; then
   echo "Starting Acuparse ..."
   _start
@@ -93,6 +101,7 @@ elif [ "$1" == 'update' ]; then
   else
     echo "Updating Acuparse ..."
     _update
+    echo "Run \"acuparse update_compose\" as root to update Docker Compose, if required."
   fi
 elif [ "$1" == 'logs' ]; then
   echo "Loading Acuparse Logs ..."
@@ -106,6 +115,17 @@ elif [ "$1" == 'dbconsole' ]; then
 elif [ "$1" == 'status' ]; then
   echo "Getting Service Status ..."
   _status
+elif [ "$1" == 'update_compose' ]; then
+  if [ "$EUID" -ne 0 ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    NC='\033[0m'
+    printf "${RED}Update must be run as root!\n${NC}Retry with:\n${GREEN}sudo acuparse update_compose${NC}\n"
+    exit
+  else
+    echo "Updating Docker Compose ..."
+    _updateCompose
+  fi
 else
   _usage
 fi

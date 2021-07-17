@@ -32,6 +32,14 @@ On a newly installed Debian/Ubuntu System
     sudo bash install_docker full | tee ~/acuparse.log
     ```
 
+#### Updating
+
+To update Docker Compose, run
+
+```bash
+sudo acuparse update && sudo acuparse update_compose
+```
+
 ## Licencing
 
 This automated installer licensed under the MIT license.
