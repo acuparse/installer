@@ -41,31 +41,31 @@ function _test_full_install() {
   export "$(cat ~/.acuparse_db)"
   {
     curl -d 'mysql[host]=localhost&mysql[database]=acuparse&mysql[username]=acuparse&mysql[password]='"$ACUPARSE_DB_PASSWORD"'&mysql[trim]=1&station[access_mac]=0C7D0C5DC14E&station[sensor_atlas]=00000001' 'http://localhost/admin/install/?database&ci'
-    \
+
     curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" 'http://localhost/admin/install/?account&do'
-    \
-    curl -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING"
-    \
+
+    curl --tls-max 1.1 -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING"
+
     sleep 5
-    \
-    curl -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING2"
-    \
+
+    curl --tls-max 1.1 -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING2"
+
     sleep 5
-    \
-    curl -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING3"
+
+    curl --tls-max 1.1 -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING3"
   } >output/logs/curl.txt
 
   crontab -l | grep -v '^#' | cut -f 6- -d ' ' | while read -r CMD; do eval "${CMD}"; done
 
   {
     curl -o output/api/health.json http://localhost/api/system/health
-    \
+
     curl -o output/api/dashboard.json http://localhost/api/v1/json/dashboard/
-    \
+
     curl -o output/api/archive.json http://localhost/api/v1/json/archive/
-    \
+
     curl -o output/api/dashboard.html http://localhost/api/v1/html/dashboard/
-    \
+
     curl -o output/api/archive.html http://localhost/api/v1/html/archive/
   } >output/logs/curl.txt
 
@@ -84,31 +84,31 @@ function _test_container_install() {
 
   {
     curl -d 'mysql[host]='"$MYSQL_HOSTNAME"'&mysql[database]='"$MYSQL_DATABASE"'&mysql[username]='"$MYSQL_USER"'&mysql[password]='"$MYSQL_PASSWORD"'&mysql[trim]=1&station[access_mac]=0C7D0C5DC14E&station[sensor_atlas]=00000001' 'http://acuparse/admin/install/?database&ci'
-    \
+
     curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" 'http://acuparse/admin/install/?account&do'
-    \
-    curl -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING"
-    \
+
+    curl --tls-max 1.1 -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING"
+
     sleep 5
-    \
-    curl -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING2"
-    \
+
+    curl --tls-max 1.1 -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING2"
+
     sleep 5
-    \
-    curl -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING3"
+
+    curl --tls-max 1.1 -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING3"
   } >output/logs/curl.txt
 
   sleep 60
 
   {
     curl -o output/api/health.json http://acuparse/api/system/health
-    \
+
     curl -o output/api/dashboard.json http://acuparse/api/v1/json/dashboard/
-    \
+
     curl -o output/api/archive.json http://acuparse/api/v1/json/archive/
-    \
+
     curl -o output/api/dashboard.html http://acuparse/api/v1/html/dashboard/
-    \
+
     curl -o output/api/archive.html http://acuparse/api/v1/html/archive/
   } >>output/logs/curl.txt
   mysqldump --no-tablespaces -hdb -uacuparse -p"$MYSQL_PASSWORD" acuparse >output/database.txt
@@ -117,7 +117,13 @@ function _test_container_install() {
 function _test_docker_install() {
   mkdir -p output/config
   bash install_docker full ci
+  echo "Testing Install ..."
+  service docker start
+  docker --version
+  docker-compose --version
+  acuparse start
   cat /opt/acuparse/acuparse.env >>output/config/acuparse.txt
+  echo "DONE: Testing Install"
 }
 
 if [ "$1" = 'container' ]; then

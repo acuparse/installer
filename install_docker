@@ -26,7 +26,7 @@
 ##
 
 REPO='master'
-COMPOSE_VERSION='1.27.4'
+COMPOSE_VERSION='1.29.2'
 
 DIST=$(cat /etc/*release | grep '^ID=' | awk -F= '{ print $2 }')
 # Set Text Colours
@@ -71,7 +71,7 @@ function _install_docker() {
 function _install_docker_compose() {
   printf "${GREEN_TEXT}""Installing Docker Compose""${RESET_TEXT}""\n"
 
-  if [[ ("$DIST" == "debian") || ("$DIST" == "ubunutu") ]]; then
+  if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") ]]; then
     curl -L "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
   elif [[ ("$DIST" == "raspbian") ]]; then
@@ -138,7 +138,7 @@ _load_docker_compose_config
 if [ "$2" == 'ci' ]; then
   MYSQL_ROOT_PASSWORD="CITEST"
   MYSQL_PASSWORD="CITEST"
-  TZ="America/Arizona"
+  TZ="America/Denver"
 else
   _get_environment
 fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.0.8'
+SCRIPT_VERSION='2.0.9'
 
 ##
 # Acuparse Installation Script
@@ -165,7 +165,7 @@ function _install_le_cert() {
   else
     apt-get install python-certbot-apache -y
   fi
-  /etc/init.d/apache2 stop
+  service apache2 stop
   if [[ "$GIT_BRANCH" != "stable" ]]; then
     printf "Requesting cert from STAGING server\n"
     certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}" --staging
@@ -173,7 +173,7 @@ function _install_le_cert() {
     printf "Requesting cert from PRODUCTION server\n"
     certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
   fi
-  /etc/init.d/apache2 start
+  service apache2 start
 }
 
 function __save_database_credentials() {
@@ -183,13 +183,13 @@ EOF
 }
 
 function _run_database_install() {
-  /etc/init.d/mysql restart || exit 1
+  service mysql restart || service mariadb restart || exit 1
   if [[ "$SQL_PW_SET" == false ]]; then
     __save_database_credentials
   fi
   mysql -uroot -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; FLUSH PRIVILEGES;"
   mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; CREATE USER 'acuparse' IDENTIFIED BY '$ACUPARSE_DB_PASSWORD'; GRANT ALL ON acuparse.* TO 'acuparse'; GRANT EVENT ON acuparse.* TO 'acuparse'; GRANT RELOAD ON *.* TO 'acuparse'; GRANT SUPER ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
-  /etc/init.d/mysql restart || exit 1
+  service mysql restart || service mariadb restart || exit 1
 }
 
 function _run_timezone_set() {
@@ -199,15 +199,27 @@ function _run_timezone_set() {
     ln -s ../usr/share/zoneinfo/"${TIMEZONE}" /etc/localtime
     echo "${TIMEZONE}" >/etc/timezone
     dpkg-reconfigure --frontend noninteractive tzdata
-    /etc/init.d/rsyslog restart
+    service rsyslog restart
     export TZ="${TIMEZONE}"
   else
     printf "\n""${CYAN_TEXT}""Configuring your system timezone.""${RESET_TEXT}""\n"
     printf "${RED_TEXT}""When ready, Press [ENTER] to continue""${RESET_TEXT}""\n"
     read -r READY
     dpkg-reconfigure tzdata
-    /etc/init.d/rsyslog restart
+    service rsyslog restart
   fi
+}
+
+function _openSSL() {
+  echo "Configuring OpenSSL for TLS v1.1 support"
+  if [[ "$OPENSSL_UBUNTU" == true ]]; then
+    sed -i '1s/^/openssl_conf = default_conf\n/' /etc/ssl/openssl.cnf
+    printf "[ default_conf ]\nssl_conf = ssl_sect\n\n[ ssl_sect ]\nsystem_default = system_default_sect\n\n[ system_default_sect ]\nMinProtocol = TLSv1.1\nCipherString = DEFAULT@SECLEVEL=1\n" >>/etc/ssl/openssl.cnf
+  else
+    sed -i 's/MinProtocol = TLSv1.2/MinProtocol = TLSv1.1/' /etc/ssl/openssl.cnf
+    sed -i 's/SECLEVEL=2/SECLEVEL=1/' /etc/ssl/openssl.cnf
+  fi
+  echo "Done: OpenSSL Config"
 }
 
 function _cleanup() {
@@ -264,17 +276,26 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
         exit 1
       fi
     else
-      if [[ "$DEB_VERSION" != "\"10\"" ]]; then
-        printf "${RED_TEXT}""ERROR: UNSUPPORTED DEBIAN! REINSTALL USING DEBIAN BUSTER(10)""${RESET_TEXT}""\n"
-        exit 1
-      else
+      if [[ "$DEB_VERSION" == "\"10\"" ]]; then
         PHP_VERSION="7.3"
         printf "${GREEN_TEXT}""DEBIAN BUSTER(10) Successfully Detected!""${RESET_TEXT}""\n\n"
+      elif [[ "$DEB_VERSION" == "\"11\"" ]]; then
+        PHP_VERSION="7.4"
+        printf "${GREEN_TEXT}""DEBIAN BULLSEYE(11) Successfully Detected!""${RESET_TEXT}""\n\n"
+        printf "${RED_TEXT}""WARNING: DEBIAN BULLSEYE(11) is currently UNSUPPORTED and is for TESTING ONLY!""${RESET_TEXT}""\n\n"
+        if [[ "$SILENT" == false ]]; then
+          printf "${RED_TEXT}""Press [ENTER] to continue""${RESET_TEXT}""\n"
+          read -r READY
+        fi
+      else
+        printf "${RED_TEXT}""ERROR: UNSUPPORTED DEBIAN! REINSTALL USING DEBIAN BUSTER(10)""${RESET_TEXT}""\n"
+        exit 1
       fi
     fi
   else
     if [[ "$UBU_VERSION" == "20.04" ]]; then
       PHP_VERSION="7.4"
+      OPENSSL_UBUNTU=true
       printf "${GREEN_TEXT}""Ubuntu Focal(20.04) Successfully Detected!""${RESET_TEXT}""\n\n"
     elif [[ "$UBU_VERSION" == "18.04" ]]; then
       PHP_VERSION="7.2"
@@ -347,8 +368,8 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   apt-get dist-upgrade -yqq
   printf "${CYAN_TEXT}""Install CORE Packages""${RESET_TEXT}""\n"
   apt-get install git ntp dnsutils imagemagick apache2 default-mysql-server rsyslog cron -yqq || exit 1
-  /etc/init.d/mysql restart || exit 1
-  /etc/init.d/apache2 restart || exit 1
+  service mysql restart || service mariadb restart || exit 1
+  service apache2 restart || exit 1
   printf "${UNDERLINE_GREEN_TEXT}""DONE: CORE Packages""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 
@@ -401,7 +422,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
     _install_le_cert
     printf "${UNDERLINE_GREEN_TEXT}""DONE: Deploying Let's Encrypt Certificate""${RESET_TEXT}""\n"
   fi
-  /etc/init.d/apache2 restart || exit 1
+  service apache2 restart || exit 1
   printf "${UNDERLINE_GREEN_TEXT}""DONE: Configuring Apache""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 
@@ -432,11 +453,12 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
 
   # Installation Cleanup
   printf "${CYAN_TEXT}""BEGIN: Running Cleanup""${RESET_TEXT}""\n"
+  _openSSL
   apt-get autoremove -y
   apt-get clean -y
   apt-get purge -y
-  /etc/init.d/mysql restart || exit 1
-  /etc/init.d/apache2 restart || exit 1
+  service mysql restart || service mariadb restart || exit 1
+  service apache2 restart || exit 1
   printf "${UNDERLINE_GREEN_TEXT}""DONE: Running Cleanup""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 

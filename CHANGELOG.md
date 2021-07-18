@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+## 2.0.9
+
+### Changed
+
+- Pin testing queries to TLSv1.1.
+- Docker Compose Version to 1.29.2.
+
+### Added
+
+- Testing for Debian Bullseye(11).
+- Docker Compose update to docker helper script.
+
+## 2.0.8
+
+### Fixed
+
+- Update database permissions.
+
+### Changed
+
+- Send multiple updates during testing.
+
+## 2.0.7
+
+### Changed
+
+- Update acuparse.env file with backup variables.
+
 ## 2.0.6
 
 ### Changed
