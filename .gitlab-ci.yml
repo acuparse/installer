@@ -109,7 +109,7 @@ TEST:INSTALLER:UBUNTU:focal:
 DEV:TEST:DOCKER:container:
   extends: .TEMPLATE:DOCKER:container
   services:
-    - name: mariadb:latest
+    - name: registry.gitlab.com/acuparse/mariadb/dev:latest
       alias: db
     - name: registry.gitlab.com/acuparse/acuparse/dev:latest
       alias: acuparse
@@ -120,7 +120,7 @@ DEV:TEST:DOCKER:container:
 TEST:DOCKER:container:
   extends: .TEMPLATE:DOCKER:container
   services:
-    - name: mariadb:latest
+    - name: registry.gitlab.com/acuparse/mariadb:latest
       alias: db
     - name: registry.gitlab.com/acuparse/acuparse:latest
       alias: acuparse
