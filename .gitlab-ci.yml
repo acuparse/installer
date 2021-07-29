@@ -55,6 +55,8 @@ variables:
 
 .TEMPLATE:DOCKER:install:
   stage: install
+  variables:
+    FF_NETWORK_PER_BUILD: 1
   before_script:
     - apt-get update
     - apt-get dist-upgrade -yq
