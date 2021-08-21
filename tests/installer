@@ -121,7 +121,6 @@ function _test_docker_install() {
   service docker start
   docker --version
   docker-compose --version
-  acuparse start
   cat /opt/acuparse/acuparse.env >>output/config/acuparse.txt
   echo "DONE: Testing Install"
 }
