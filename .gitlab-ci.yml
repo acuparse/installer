@@ -3,6 +3,10 @@ stages:
   - install
   - test
 
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH
+
 variables:
   LE_FQDN: "ci.dev.acuparse.com"
   EMAIL: "ci@dev.acuparse.com"
@@ -48,9 +52,6 @@ variables:
   artifacts:
     paths:
       - output
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_BRANCH == "dev"'
   dependencies: [ ]
 
 .TEMPLATE:DOCKER:install:
@@ -91,6 +92,13 @@ LINT:markdown:
     - markdownlint .
   dependencies: [ ]
 
+LINT:compose:
+  stage: lint
+  image: docker/compose:latest
+  script:
+    - docker-compose -f docker/docker-compose.yml config
+  dependencies: [ ]
+
 TEST:INSTALLER:DEBIAN:buster:
   extends: .TEMPLATE:LOCAL:install
   image: debian:buster
@@ -98,7 +106,6 @@ TEST:INSTALLER:DEBIAN:buster:
 TEST:INSTALLER:DEBIAN:bullseye:
   extends: .TEMPLATE:LOCAL:install
   image: debian:bullseye
-  allow_failure: true
 
 TEST:INSTALLER:UBUNTU:bionic:
   extends: .TEMPLATE:LOCAL:install

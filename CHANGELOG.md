@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+## 2.10.0
+
+### Changed
+
+- Debian Bullseye(11) Support.
+
 ## 2.0.9
 
 ### Changed

@@ -2,7 +2,7 @@
 
 See the [Acuparse Install Guide](https://docs.acuparse.com/INSTALL) for further install details.
 
-> **NOTICE:** ONLY Supports Debian/Rasbian Buster(10), Ubuntu Bionic(18.04) and Ubuntu Focal(20.04).
+> **NOTICE:** ONLY Supports Debian/Rasbian Buster(10)/Bullseye(11), Ubuntu Bionic(18.04) and Ubuntu Focal(20.04).
 
 ## Usage
 

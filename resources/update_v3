@@ -102,7 +102,7 @@ if [ ! "$READY" ]; then
 
   # No Supported OS
   else
-    printf "${RED_TEXT}""ERROR: This script is designed to be run on a Debian/Raspbian Buster(10) or Ubuntu 20.04/18.04 system""${RESET_TEXT}""\n"
+    printf "${RED_TEXT}""ERROR: This script is designed to be run on a Debian/Raspbian Buster(10)/Bullseye(11) or Ubuntu 20.04/20.04 system""${RESET_TEXT}""\n"
     exit 1
   fi
 fi
