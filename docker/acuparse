@@ -74,8 +74,12 @@ function _status() {
 }
 
 function _updateCompose() {
-  curl -L "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-  chmod +x /usr/local/bin/docker-compose
+  if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") ]]; then
+    curl -L "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+  elif [[ ("$DIST" == "raspbian") ]]; then
+    pip3 install docker-compose -q
+  fi
   docker-compose -f /opt/acuparse/docker-compose.yml up -d
 }
 

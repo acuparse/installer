@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.0.9'
+SCRIPT_VERSION='2.10.0'
 
 ##
 # Acuparse Installation Script
@@ -162,10 +162,13 @@ function _install_le_cert() {
     add-apt-repository ppa:certbot/certbot -y
     apt-get update >/dev/null 2>&1
     apt-get install python3-certbot-apache -y
+  elif [[ ("$DIST" == "debian") && ("$DEB_VERSION" == "\"11\"") ]]; then
+    printf "${YELLOW_TEXT}""DEBIAN BULLSEYE DETECTED! Using Python 3""${RESET_TEXT}""\n"
+    apt-get install python3-certbot-apache -y
   else
     apt-get install python-certbot-apache -y
   fi
-  service apache2 stop
+  systemctl stop apache2 || service apache2 stop
   if [[ "$GIT_BRANCH" != "stable" ]]; then
     printf "Requesting cert from STAGING server\n"
     certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}" --staging
@@ -173,7 +176,7 @@ function _install_le_cert() {
     printf "Requesting cert from PRODUCTION server\n"
     certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
   fi
-  service apache2 start
+  systemctl start apache2 || service apache2 start
 }
 
 function __save_database_credentials() {
@@ -183,13 +186,13 @@ EOF
 }
 
 function _run_database_install() {
-  service mysql restart || service mariadb restart || exit 1
+  systemctl restart mysql || systemctl restart mariadb || service mysql restart || service mariadb restart || exit 1
   if [[ "$SQL_PW_SET" == false ]]; then
     __save_database_credentials
   fi
   mysql -uroot -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'; FLUSH PRIVILEGES;"
   mysql -uroot -e "CREATE DATABASE IF NOT EXISTS acuparse; CREATE USER 'acuparse' IDENTIFIED BY '$ACUPARSE_DB_PASSWORD'; GRANT ALL ON acuparse.* TO 'acuparse'; GRANT EVENT ON acuparse.* TO 'acuparse'; GRANT RELOAD ON *.* TO 'acuparse'; GRANT SUPER ON *.* TO 'acuparse'; FLUSH PRIVILEGES;"
-  service mysql restart || service mariadb restart || exit 1
+  systemctl restart mysql || systemctl restart mariadb || service mysql restart || service mariadb restart || exit 1
 }
 
 function _run_timezone_set() {
@@ -199,15 +202,18 @@ function _run_timezone_set() {
     ln -s ../usr/share/zoneinfo/"${TIMEZONE}" /etc/localtime
     echo "${TIMEZONE}" >/etc/timezone
     dpkg-reconfigure --frontend noninteractive tzdata
-    service rsyslog restart
     export TZ="${TIMEZONE}"
   else
     printf "\n""${CYAN_TEXT}""Configuring your system timezone.""${RESET_TEXT}""\n"
     printf "${RED_TEXT}""When ready, Press [ENTER] to continue""${RESET_TEXT}""\n"
     read -r READY
     dpkg-reconfigure tzdata
-    service rsyslog restart
   fi
+
+  systemctl restart rsyslog || service rsyslog restart
+  systemctl enable systemd-timesyncd || true
+  systemctl start systemd-timesyncd || true
+  timedatectl set-ntp on || true
 }
 
 function _openSSL() {
@@ -252,7 +258,7 @@ function _cleanup() {
 
 # Begin Install
 printf "\nWelcome to the Acuparse Installation Script | Version: ""${SCRIPT_VERSION}""\n"
-printf "${YELLOW_TEXT}""WARNING:""${RESET_TEXT}"" Only run this script on a freshly installed Debian/Raspbian Buster(10) or Ubuntu 18.04/19.04 system!\n\n"
+printf "${YELLOW_TEXT}""WARNING:""${RESET_TEXT}"" Only run this script on a freshly installed Debian/Raspbian Buster(10)/Bullseye(11) or Ubuntu 18.04/20.04 system!\n\n"
 
 # Ensure Debian/Ubuntu/Rasberian
 if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") ]]; then
@@ -271,8 +277,11 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
       if [[ "$DEB_VERSION" == "\"10\"" ]]; then
         PHP_VERSION="7.3"
         printf "${GREEN_TEXT}""RASBIAN BUSTER(10) Successfully Detected!""${RESET_TEXT}""\n\n"
+      elif [[ "$DEB_VERSION" == "\"11\"" ]]; then
+        PHP_VERSION="7.4"
+        printf "${GREEN_TEXT}""RASBIAN BULLSEYE(11) Successfully Detected!""${RESET_TEXT}""\n\n"
       else
-        printf "${RED_TEXT}""ERROR: UNSUPPORTED RASBIAN! REINSTALL USING RASBIAN BUSTER(10)""${RESET_TEXT}""\n"
+        printf "${RED_TEXT}""ERROR: UNSUPPORTED RASBIAN! REINSTALL USING RASBIAN BULLSEYE(11)""${RESET_TEXT}""\n"
         exit 1
       fi
     else
@@ -282,13 +291,12 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
       elif [[ "$DEB_VERSION" == "\"11\"" ]]; then
         PHP_VERSION="7.4"
         printf "${GREEN_TEXT}""DEBIAN BULLSEYE(11) Successfully Detected!""${RESET_TEXT}""\n\n"
-        printf "${RED_TEXT}""WARNING: DEBIAN BULLSEYE(11) is currently UNSUPPORTED and is for TESTING ONLY!""${RESET_TEXT}""\n\n"
         if [[ "$SILENT" == false ]]; then
           printf "${RED_TEXT}""Press [ENTER] to continue""${RESET_TEXT}""\n"
           read -r READY
         fi
       else
-        printf "${RED_TEXT}""ERROR: UNSUPPORTED DEBIAN! REINSTALL USING DEBIAN BUSTER(10)""${RESET_TEXT}""\n"
+        printf "${RED_TEXT}""ERROR: UNSUPPORTED DEBIAN! REINSTALL USING DEBIAN BULLSEYE(11)""${RESET_TEXT}""\n"
         exit 1
       fi
     fi
@@ -367,9 +375,9 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   printf "${CYAN_TEXT}""Running Upgrade ...""${RESET_TEXT}""\n"
   apt-get dist-upgrade -yqq
   printf "${CYAN_TEXT}""Install CORE Packages""${RESET_TEXT}""\n"
-  apt-get install git ntp dnsutils imagemagick apache2 default-mysql-server rsyslog cron -yqq || exit 1
-  service mysql restart || service mariadb restart || exit 1
-  service apache2 restart || exit 1
+  apt-get install git dnsutils imagemagick apache2 default-mysql-server rsyslog cron -yqq || exit 1
+  systemctl restart mysql || systemctl restart mariadb || service mysql restart || service mariadb restart || exit 1
+  systemctl restart apache2 || service apache2 restart || exit 1
   printf "${UNDERLINE_GREEN_TEXT}""DONE: CORE Packages""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 
@@ -422,7 +430,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
     _install_le_cert
     printf "${UNDERLINE_GREEN_TEXT}""DONE: Deploying Let's Encrypt Certificate""${RESET_TEXT}""\n"
   fi
-  service apache2 restart || exit 1
+  systemctl restart apache2 || service apache2 restart || exit 1
   printf "${UNDERLINE_GREEN_TEXT}""DONE: Configuring Apache""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 
@@ -457,8 +465,8 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   apt-get autoremove -y
   apt-get clean -y
   apt-get purge -y
-  service mysql restart || service mariadb restart || exit 1
-  service apache2 restart || exit 1
+  systemctl restart mysql || systemctl restart mariadb || service mysql restart || service mariadb restart || exit 1
+  systemctl restart apache2 || service apache2 restart || exit 1
   printf "${UNDERLINE_GREEN_TEXT}""DONE: Running Cleanup""${RESET_TEXT}""\n\n"
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 
@@ -467,6 +475,6 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
 
 # No Supported OS
 else
-  printf "${RED_TEXT}""ERROR: This script is designed to be run on a freshly installed Debian/Raspbian Buster(10) or Ubuntu 20.04/18.04 system""${RESET_TEXT}""\n"
+  printf "${RED_TEXT}""ERROR: This script is designed to be run on a freshly installed Debian/Raspbian Buster(10)/Bullseye(11) or Ubuntu 18.04/20.04 system""${RESET_TEXT}""\n"
   exit 1
 fi

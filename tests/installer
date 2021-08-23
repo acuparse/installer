@@ -41,17 +41,11 @@ function _test_full_install() {
   export "$(cat ~/.acuparse_db)"
   {
     curl -d 'mysql[host]=localhost&mysql[database]=acuparse&mysql[username]=acuparse&mysql[password]='"$ACUPARSE_DB_PASSWORD"'&mysql[trim]=1&station[access_mac]=0C7D0C5DC14E&station[sensor_atlas]=00000001' 'http://localhost/admin/install/?database&ci'
-
     curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" 'http://localhost/admin/install/?account&do'
-
     curl --tls-max 1.1 -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING"
-
     sleep 5
-
     curl --tls-max 1.1 -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING2"
-
     sleep 5
-
     curl --tls-max 1.1 -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING3"
   } >output/logs/curl.txt
 
@@ -59,13 +53,9 @@ function _test_full_install() {
 
   {
     curl -o output/api/health.json http://localhost/api/system/health
-
     curl -o output/api/dashboard.json http://localhost/api/v1/json/dashboard/
-
     curl -o output/api/archive.json http://localhost/api/v1/json/archive/
-
     curl -o output/api/dashboard.html http://localhost/api/v1/html/dashboard/
-
     curl -o output/api/archive.html http://localhost/api/v1/html/archive/
   } >output/logs/curl.txt
 
@@ -75,7 +65,7 @@ function _test_full_install() {
   cat /var/log/syslog >output/logs/syslog.txt || true
   cat /var/log/apache2/access.log >output/logs/access.txt || true
   cat /var/log/apache2/error.log >output/logs/error.txt || true
-  cat /opt/acuparse/logs/cron.log >output/cron.txt
+  cat /opt/acuparse/logs/cron.log >output/logs/cron.txt
 }
 
 function _test_container_install() {
@@ -84,17 +74,11 @@ function _test_container_install() {
 
   {
     curl -d 'mysql[host]='"$MYSQL_HOSTNAME"'&mysql[database]='"$MYSQL_DATABASE"'&mysql[username]='"$MYSQL_USER"'&mysql[password]='"$MYSQL_PASSWORD"'&mysql[trim]=1&station[access_mac]=0C7D0C5DC14E&station[sensor_atlas]=00000001' 'http://acuparse/admin/install/?database&ci'
-
     curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" 'http://acuparse/admin/install/?account&do'
-
     curl --tls-max 1.1 -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING"
-
     sleep 5
-
     curl --tls-max 1.1 -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING2"
-
     sleep 5
-
     curl --tls-max 1.1 -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING3"
   } >output/logs/curl.txt
 
@@ -102,13 +86,9 @@ function _test_container_install() {
 
   {
     curl -o output/api/health.json http://acuparse/api/system/health
-
     curl -o output/api/dashboard.json http://acuparse/api/v1/json/dashboard/
-
     curl -o output/api/archive.json http://acuparse/api/v1/json/archive/
-
     curl -o output/api/dashboard.html http://acuparse/api/v1/html/dashboard/
-
     curl -o output/api/archive.html http://acuparse/api/v1/html/archive/
   } >>output/logs/curl.txt
   mysqldump --no-tablespaces -hdb -uacuparse -p"$MYSQL_PASSWORD" acuparse >output/database.txt
@@ -121,6 +101,7 @@ function _test_docker_install() {
   service docker start
   docker --version
   docker-compose --version
+  acuparse
   cat /opt/acuparse/acuparse.env >>output/config/acuparse.txt
   echo "DONE: Testing Install"
 }
