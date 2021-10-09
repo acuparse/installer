@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.10.0'
+SCRIPT_VERSION='2.11.0'
 
 ##
 # Acuparse Installation Script
@@ -309,7 +309,7 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
       PHP_VERSION="7.2"
       printf "${GREEN_TEXT}""Ubuntu Bionic(18.04) Successfully Detected!""${RESET_TEXT}""\n\n"
     else
-      printf "${RED_TEXT}""ERROR: UNSUPPORTED UBUNTU! REINSTALL USING UBUNTU 18.04""${RESET_TEXT}""\n"
+      printf "${RED_TEXT}""ERROR: UNSUPPORTED UBUNTU! REINSTALL USING UBUNTU 20.04""${RESET_TEXT}""\n"
       exit 1
     fi
   fi

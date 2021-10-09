@@ -43,7 +43,7 @@ services:
   acuparse:
     depends_on:
       - db
-    image: acuparse/acuparse
+    image: acuparse/acuparse # Use "acuparse/acuparse-buster" for legacy support
     healthcheck:
       test: curl --fail -s http://localhost/api/system/health || exit 1
       interval: 30s

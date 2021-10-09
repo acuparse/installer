@@ -55,6 +55,7 @@ function _update() {
   chmod +x /usr/local/bin/acuparse
   docker-compose -f /opt/acuparse/docker-compose.yml pull
   docker-compose -f /opt/acuparse/docker-compose.yml up -d
+  docker image prune -f
 }
 
 function _logs() {
