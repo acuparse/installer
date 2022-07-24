@@ -77,10 +77,13 @@ LINT:bash:
   image: koalaman/shellcheck-alpine
   stage: lint
   before_script:
-    - export SHELLCHECK_OPTS="-e SC2034 -e SC2059"
+    - export SHELLCHECK_OPTS="-e SC2034 -e SC2059 -e SC2317"
   script:
     - shellcheck install
+    - shellcheck install_docker
+    - shellcheck docker/acuparse
     - shellcheck resources/*
+    - shellcheck tests/installer
   dependencies: [ ]
 
 LINT:markdown:
