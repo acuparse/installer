@@ -2,7 +2,7 @@
 
 ##
 # Acuparse Installation CI Test Script
-# @copyright Copyright (C) 2015-2021 Maxwell Power
+# @copyright Copyright (C) 2015-2022 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #
@@ -28,17 +28,28 @@
 set -x
 set -e
 
-TEST_READING="dateutc=2021-01-01T00:00:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=10&uvindex=1&lightintensity=80000&measured_light_seconds=50000&strikecount=100&interference=0&last_strike_ts=2020-01-01T00:00:00&last_strike_distance=1&humidity=10&tempf=10.5&windspeedmph=10&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=25&heatindex=50.5&feelslike=50.5&windchill=50.5&dewptf=25.5&dailyrainin=3.75&rainin=1.25"
-TEST_READING2="dateutc=2021-01-01T00:05:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=20&uvindex=2&lightintensity=90000&measured_light_seconds=50300&strikecount=200&interference=0&last_strike_ts=2020-01-01T00:05:00&last_strike_distance=2.5&humidity=20&tempf=20.5&windspeedmph=20&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=30&heatindex=75.5&feelslike=75.5&windchill=75.5&dewptf=75.5&dailyrainin=6.75&rainin=1.25"
-TEST_READING3="dateutc=2021-01-01T00:10:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=30&uvindex=3&lightintensity=90000&measured_light_seconds=50600&strikecount=300&interference=0&last_strike_ts=2020-01-01T00:10:00&last_strike_distance=3.5&humidity=30&tempf=30.5&windspeedmph=30&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=30&heatindex=75.5&feelslike=75.5&windchill=75.5&dewptf=75.5&dailyrainin=9.75&rainin=1.25"
+TEST_READING="dateutc=2022-01-01T00:00:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=10.25&uvindex=1&lightintensity=80000&measured_light_seconds=50000&strikecount=100&interference=0&last_strike_ts=2020-01-01T00:00:00&last_strike_distance=1&humidity=10&tempf=10.5&windspeedmph=10&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=25&heatindex=50.5&feelslike=50.5&windchill=50.5&dewptf=25.5&dailyrainin=3.75&rainin=1.25"
+TEST_READING2="dateutc=2022-01-01T00:05:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=20.55&uvindex=2&lightintensity=90000&measured_light_seconds=50300&strikecount=200&interference=0&last_strike_ts=2020-01-01T00:05:00&last_strike_distance=2.5&humidity=20&tempf=20.5&windspeedmph=20&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=30&heatindex=75.5&feelslike=75.5&windchill=75.5&dewptf=75.5&dailyrainin=6.75&rainin=1.25"
+TEST_READING3="dateutc=2022-01-01T00:10:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=30.75&uvindex=3&lightintensity=90000&measured_light_seconds=50600&strikecount=300&interference=0&last_strike_ts=2020-01-01T00:10:00&last_strike_distance=3.5&humidity=30&tempf=30.5&windspeedmph=30&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=30&heatindex=75.5&feelslike=75.5&windchill=75.5&dewptf=75.5&dailyrainin=9.75&rainin=1.25"
 
 function _test_full_install() {
+  echo "Testing Full Install"
+
   mkdir -p output/api
   mkdir -p output/logs
-  if [ "$UPSTREAM_BRANCH" != "" ]; then bash install -b "$UPSTREAM_BRANCH" -s -d | tee output/logs/acuparse.txt; elif [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -e -l """$LE_FQDN"",""$EMAIL"",n,n"; else bash install -s -d | tee output/logs/acuparse.txt; fi
-  service rsyslog start
-  service cron start
+  mkdir -p output/config
+
+  if [ "$UPSTREAM_BRANCH" != "" ]; then bash install -b "$UPSTREAM_BRANCH" -s -d | tee output/logs/installer.log; elif [ "$CI_COMMIT_REF_NAME" != "master" ]; then bash install -b dev -s -d -e -l """$LE_FQDN"",""$EMAIL"",n,n"; else bash install -s -d | tee output/logs/installer.log; fi
+  service rsyslog start || exit 1
+  service cron start || exit 1
+  service mysql start || service mariadb start || exit 1
+  service apache2 start || exit 1
+
+  echo "Checking Database"
   export "$(cat ~/.acuparse_db)"
+  mysql -hlocalhost -uacuparse -p"$ACUPARSE_DB_PASSWORD" --batch --skip-column-names -e "SHOW DATABASES LIKE 'acuparse'" || (echo "Checking Database failed" && exit 1)
+
+  echo "Configuring Acuparse"
   {
     curl -d 'mysql[host]=localhost&mysql[database]=acuparse&mysql[username]=acuparse&mysql[password]='"$ACUPARSE_DB_PASSWORD"'&mysql[trim]=1&station[access_mac]=0C7D0C5DC14E&station[sensor_atlas]=00000001' 'http://localhost/admin/install/?database&ci'
     curl -d 'username='"$TEST_USERNAME"'&email='"$EMAIL"'&password='"$TEST_PASSWORD" 'http://localhost/admin/install/?account&do'
@@ -47,28 +58,82 @@ function _test_full_install() {
     curl --tls-max 1.1 -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING2"
     sleep 5
     curl --tls-max 1.1 -X POST -k 'https://localhost/weatherstation/updateweatherstation?&'"$TEST_READING3"
-  } >output/logs/curl.txt
+  } >>output/logs/curl.log
 
-  crontab -l | grep -v '^#' | cut -f 6- -d ' ' | while read -r CMD; do eval "${CMD}"; done
+  echo "Running Cron Jobs"
+  crontab -l | grep -v '^#' | cut -f 6- -d ' ' | while read -r CMD; do eval "${CMD}"; done || (echo "ERROR: Cron Jobs Failed" && exit 1)
 
+  echo "Checking API"
   {
-    curl -o output/api/health.json http://localhost/api/system/health
-    curl -o output/api/dashboard.json http://localhost/api/v1/json/dashboard/
-    curl -o output/api/archive.json http://localhost/api/v1/json/archive/
-    curl -o output/api/dashboard.html http://localhost/api/v1/html/dashboard/
-    curl -o output/api/archive.html http://localhost/api/v1/html/archive/
-  } >output/logs/curl.txt
+    curl -o output/api/health.json 'http://localhost/api/system/health'
+    curl -o output/api/dashboard.json 'http://localhost/api/v1/json/dashboard/'
+    curl -o output/api/archive.json 'http://localhost/api/v1/json/archive/'
+    curl -o output/api/dashboard.html 'http://localhost/api/v1/html/dashboard/'
+    curl -o output/api/archive.html 'http://localhost/api/v1/html/archive/'
+  } >>output/logs/curl.log
 
-  crontab -l >output/crontab.txt || true
-  mysqldump --no-tablespaces -uacuparse -p"$ACUPARSE_DB_PASSWORD" acuparse >output/database.txt
-  cat /opt/acuparse/src/usr/config.php >output/config.txt || true
-  cat /var/log/syslog >output/logs/syslog.txt || true
-  cat /var/log/apache2/access.log >output/logs/access.txt || true
-  cat /var/log/apache2/error.log >output/logs/error.txt || true
-  cat /opt/acuparse/logs/cron.log >output/logs/cron.txt
+  echo "Dumping Crontab"
+  crontab -l >>output/config/crontab.conf
+
+  echo "Dumping Database"
+  mysqldump --no-tablespaces -uacuparse -p"$ACUPARSE_DB_PASSWORD" acuparse >output/database.sql
+
+  echo "Dumping Config and Log Files"
+  cp /opt/acuparse/src/usr/config.php output/config/acuparse.conf
+  cp /var/log/syslog output/logs/syslog.log
+  cp /var/log/apache2/access.log output/logs/access.log
+  cp /var/log/apache2/error.log output/logs/error.log
+  cp /opt/acuparse/logs/cron.log output/logs/cron.log
+
+  echo "Starting Acuparse Specific Testing ..."
+
+  echo "Checking Database Tables"
+  grep <output/database.sql "Table structure for table \`wu_updates\`" || (echo "ERROR: Database Table Structure Failed" && exit 1)
+
+  echo "Check JSON Response"
+  jq -r '.installed' output/api/health.json || (echo "ERROR: Health API Failed" && exit 1)
+  jq -r '.[].main.tempF' output/api/dashboard.json | grep '30.5' || (echo "ERROR: Dashboard API Failed" && exit 1)
+
+  echo "Check HTML Response"
+  grep <output/api/dashboard.html "<h2>30.5&#8457; (-0.8&#8451;) <i class=\"fas fa-long-arrow-alt-right\"></i></h2>" || (echo "ERROR: Dashboard HTML Failed" && exit 1)
+
+  echo "Checking SYSTEM logs for installation errors"
+  grep <output/logs/syslog.log "(SYSTEM){INSTALLER}: Database configuration saved successfully" || (echo "ERROR: Database Config Failed" && exit 1)
+  grep <output/logs/syslog.log "(SYSTEM){INSTALLER}: First account for ci added successfully" || (echo "ERROR: Adding Account Failed" && exit 1)
+  grep <output/logs/syslog.log "(SYSTEM){INSTALLER}: ci logged in successfully" || (echo "ERROR: Initial Login Failed" && exit 1)
+
+  echo "Checking Datbase Trimming"
+  grep <output/logs/syslog.log "(SYSTEM){TRIM}: Successfully Enabled Database Trimming" || (echo "ERROR: Trimming Failed" && exit 1)
+  grep <output/logs/syslog.log "(SYSTEM){TRIM}: Database Trimming OK" || (echo echo "ERROR: Cron trimming check failed" && exit 1)
+
+  echo "Checking ACCESS Readings"
+
+  echo "Check Battery"
+  grep <output/logs/syslog.log "(ACCESS){ATLAS}: Battery = normal" || (echo "ERROR: Atlas Battery not found" && exit 1)
+  grep <output/logs/syslog.log "(ACCESS): Battery = normal" || (echo "ERROR: Access Battery not found" && exit 1)
+
+  echo "Update One ..."
+  grep <output/logs/syslog.log "(ACCESS): Pressure = 10.25" || (echo "ERROR: Pressure not found" && exit 1)
+  grep <output/logs/syslog.log "(ACCESS){ATLAS}: TempF = 10.5" || (echo "ERROR: Temp not found" && exit 1)
+
+  echo "Update Three ..."
+  grep <output/logs/syslog.log "(ACCESS): Pressure = 30.75" || (echo "ERROR: Pressure not found" && exit 1)
+  grep <output/logs/syslog.log "(ACCESS){ATLAS}: TempF = 30.5" || (echo "ERROR: Temp not found" && exit 1)
+
+  echo "Checking Lightning"
+  grep <output/logs/syslog.log "(ACCESS){LIGHTNING}<ATLAS>: Possible Lightning Detected" || (echo "ERROR: Initial Lightning not found" && exit 1)
+  grep <output/logs/syslog.log "(ACCESS){LIGHTNING}<ATLAS>: Daily = 200" || (echo "ERROR: Final Lightning not found" && exit 1)
+
+  echo "Checking Cron and Archive"
+  grep <output/logs/syslog.log "(SYSTEM){CRON}: Archive Updated Successfully" || (echo "ERROR: Archive not updated" && exit 1)
+  grep <output/logs/syslog.log "(SYSTEM){CRON}: \*ONLINE\*" || (echo "ERROR: System not online" && exit 1)
+  grep <output/logs/syslog.log "(SYSTEM){CRON}: DONE Running System Tasks" || (echo echo "ERROR: Cron did not complete" && exit 1)
+
+  echo "DONE: Testing Complete!"
 }
 
 function _test_container_install() {
+  echo "Testing Container Install"
   mkdir -p output/api
   mkdir -p output/logs
 
@@ -80,30 +145,45 @@ function _test_container_install() {
     curl --tls-max 1.1 -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING2"
     sleep 5
     curl --tls-max 1.1 -X POST -k 'https://acuparse/weatherstation/updateweatherstation?&'"$TEST_READING3"
-  } >output/logs/curl.txt
+  } >>output/logs/curl.log
 
   sleep 60
 
   {
-    curl -o output/api/health.json http://acuparse/api/system/health
-    curl -o output/api/dashboard.json http://acuparse/api/v1/json/dashboard/
-    curl -o output/api/archive.json http://acuparse/api/v1/json/archive/
-    curl -o output/api/dashboard.html http://acuparse/api/v1/html/dashboard/
-    curl -o output/api/archive.html http://acuparse/api/v1/html/archive/
-  } >>output/logs/curl.txt
-  mysqldump --no-tablespaces -hdb -uacuparse -p"$MYSQL_PASSWORD" acuparse >output/database.txt
+    curl -o output/api/health.json 'http://acuparse/api/system/health'
+    curl -o output/api/dashboard.json 'http://acuparse/api/v1/json/dashboard/'
+    curl -o output/api/archive.json 'http://acuparse/api/v1/json/archive/'
+    curl -o output/api/dashboard.html 'http://acuparse/api/v1/html/dashboard/'
+    curl -o output/api/archive.html 'http://acuparse/api/v1/html/archive/'
+  } >>output/logs/curl.log
+
+  echo "Dumping Database"
+  mysqldump --no-tablespaces -hdb -uacuparse -p"$MYSQL_PASSWORD" acuparse >output/database.sql
+
+  echo "Starting Acuparse Specific Testing ..."
+
+  echo "Checking Database Tables"
+  grep <output/database.sql "Table structure for table \`wu_updates\`" || (echo "ERROR: Database Table Structure Failed" && exit 1)
+
+  echo "Check JSON Response"
+  jq -r '.installed' output/api/health.json || (echo "ERROR: Health API Failed" && exit 1)
+  jq -r '.[].main.tempF' output/api/dashboard.json | grep '30.5' || (echo "ERROR: Dashboard API Failed" && exit 1)
+
+  echo "Check HTML Response"
+  grep <output/api/dashboard.html "<h2>30.5&#8457; (-0.8&#8451;) <i class=\"fas fa-long-arrow-alt-right\"></i></h2>" || (echo "ERROR: Dashboard HTML Failed" && exit 1)
+
+  echo "DONE: Container Testing Complete!"
 }
 
 function _test_docker_install() {
-  mkdir -p output/config
   bash install_docker full ci
-  echo "Testing Install ..."
-  service docker start
+  echo "Testing Docker Install ..."
+  systemctl start docker || service docker start || exit 1
   docker --version
   docker-compose --version
   acuparse
-  cat /opt/acuparse/acuparse.env >>output/config/acuparse.txt
-  echo "DONE: Testing Install"
+  cat /opt/acuparse/acuparse.env >>environment.env
+  echo "DONE: Testing Docker Install"
 }
 
 if [ "$1" = 'container' ]; then

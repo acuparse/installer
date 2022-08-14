@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+## 2.12.0
+
+### Changed
+
+- Ubuntu Jammy Support.
+- Docker Compose Version to 2.10.2.
+
+### Removed
+
+- Ubuntu Bionic Support.
+
 ## 2.10.0
 
 ### Changed
