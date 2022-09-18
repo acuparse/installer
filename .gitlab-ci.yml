@@ -1,7 +1,8 @@
 stages:
   - lint
-  - install
-  - test
+  - local
+  - container
+  - docker
 
 workflow:
   rules:
@@ -14,20 +15,22 @@ variables:
   TEST_PASSWORD: "P@55w0rd!"
 
 .TEMPLATE:LOCAL:install:
-  stage: install
+  stage: local
   before_script:
     - apt-get update
     - apt-get dist-upgrade -yq
-    - apt-get install curl wget -yq
+    - apt-get install curl jq -yq
   script:
     - bash tests/installer
   artifacts:
     paths:
       - output
+    when: on_failure
   dependencies: [ ]
+  needs: [ LINT:bash ]
 
 .TEMPLATE:DOCKER:container:
-  stage: install
+  stage: container
   image: alpine
   variables:
     MYSQL_ROOT_PASSWORD: P@ssw0rd1234
@@ -38,7 +41,7 @@ variables:
     TZ: America/Denver
     FF_NETWORK_PER_BUILD: 1
   before_script:
-    - apk --no-cache add curl mysql-client bash
+    - apk --no-cache add curl jq mysql-client bash
     - >
       while ! mysqladmin ping -h"${MYSQL_HOSTNAME}" -p"${MYSQL_PASSWORD}" --silent; do
         echo "Waiting for SQL Container"
@@ -52,10 +55,12 @@ variables:
   artifacts:
     paths:
       - output
+    when: on_failure
   dependencies: [ ]
+  needs: [ LINT:bash ]
 
 .TEMPLATE:DOCKER:install:
-  stage: install
+  stage: docker
   variables:
     FF_NETWORK_PER_BUILD: 1
   before_script:
@@ -71,7 +76,9 @@ variables:
   artifacts:
     paths:
       - output
+    when: on_failure
   dependencies: [ ]
+  needs: [ LINT:bash, LINT:compose ]
 
 LINT:bash:
   image: koalaman/shellcheck-alpine
@@ -102,23 +109,28 @@ LINT:compose:
     - docker-compose -f docker/docker-compose.yml config
   dependencies: [ ]
 
-TEST:INSTALLER:DEBIAN:buster:
+DEBIAN:buster:
   extends: .TEMPLATE:LOCAL:install
   image: debian:buster
 
-TEST:INSTALLER:DEBIAN:bullseye:
+DEBIAN:bullseye:
   extends: .TEMPLATE:LOCAL:install
   image: debian:bullseye
 
-TEST:INSTALLER:UBUNTU:bionic:
-  extends: .TEMPLATE:LOCAL:install
-  image: ubuntu:bionic
-
-TEST:INSTALLER:UBUNTU:focal:
+UBUNTU:focal:
   extends: .TEMPLATE:LOCAL:install
   image: ubuntu:focal
 
-DEV:TEST:DOCKER:container:
+UBUNTU:jammy:
+  extends: .TEMPLATE:LOCAL:install
+  before_script:
+    - apt-get update
+    - apt-get dist-upgrade -yq
+    - apt-get install curl jq -yq
+    - cp tests/resources/init.d/rsyslog /etc/init.d/rsyslog && chmod +x /etc/init.d/rsyslog
+  image: ubuntu:jammy
+
+DEV:CONTAINER:
   extends: .TEMPLATE:DOCKER:container
   services:
     - name: registry.gitlab.com/acuparse/mariadb/dev:latest
@@ -127,9 +139,8 @@ DEV:TEST:DOCKER:container:
       alias: acuparse
   rules:
     - if: '$CI_COMMIT_BRANCH != "master"'
-  dependencies: [ ]
 
-TEST:DOCKER:container:
+CONTAINER:
   extends: .TEMPLATE:DOCKER:container
   services:
     - name: registry.gitlab.com/acuparse/mariadb:latest
@@ -138,23 +149,19 @@ TEST:DOCKER:container:
       alias: acuparse
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
-  dependencies: [ ]
 
-TEST:DOCKER:INSTALLER:DEBIAN:buster:
+DOCKER:DEBIAN:buster:
   extends: .TEMPLATE:DOCKER:install
   image: debian:buster
 
-TEST:DOCKER:INSTALLER:DEBIAN:bullseye:
+DOCKER:DEBIAN:bullseye:
   extends: .TEMPLATE:DOCKER:install
   image: debian:bullseye
 
-TEST:DOCKER:INSTALLER:UBUNTU:bionic:
-  extends: .TEMPLATE:DOCKER:install
-  image: ubuntu:bionic
-
-TEST:DOCKER:INSTALLER:UBUNTU:focal:
+DOCKER:UBUNTU:focal:
   extends: .TEMPLATE:DOCKER:install
   image: ubuntu:focal
 
-include:
-  - template: Jobs/Code-Quality.gitlab-ci.yml
+DOCKER:UBUNTU:jammy:
+  extends: .TEMPLATE:DOCKER:install
+  image: ubuntu:jammy

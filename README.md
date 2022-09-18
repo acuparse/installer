@@ -2,20 +2,20 @@
 
 See the [Acuparse Install Guide](https://docs.acuparse.com/INSTALL) for further install details.
 
-> **NOTICE:** ONLY Supports Debian/Rasbian Buster(10)/Bullseye(11), Ubuntu Bionic(18.04) and Ubuntu Focal(20.04).
+> **NOTICE:** ONLY Supports Debian/Rasbian Bullseye (11)/Buster (10) or Ubuntu Jammy (22.04)/Focal (20.04).
 
 ## Usage
 
 Install your base Debian/Ubuntu based operating system. Then, run this installer:
 
 ```bash
-curl -O https://gitlab.com/acuparse/installer/raw/master/install && sudo bash install | tee ~/acuparse.log
+curl -O https://gitlab.com/acuparse/installer/-/raw/master/install && sudo bash install | tee ~/acuparse.log
 ```
 
 If that fails, try:
 
 ```bash
-wget https://gitlab.com/acuparse/installer/raw/master/install && sudo bash install | tee ~/acuparse.log
+wget https://gitlab.com/acuparse/installer/-/raw/master/install && sudo bash install | tee ~/acuparse.log
 ```
 
 ### Docker Compose
@@ -28,7 +28,7 @@ On a newly installed Debian/Ubuntu System
     - If you already have Docker installed, see the Docker guide.
 
     ```bash
-    curl -O https://gitlab.com/acuparse/installer/raw/master/install_docker && \
+    curl -O https://gitlab.com/acuparse/installer/-/raw/master/install_docker && \
     sudo bash install_docker full | tee ~/acuparse.log
     ```
 
