@@ -31,7 +31,7 @@ variables:
 
 .TEMPLATE:DOCKER:container:
   stage: container
-  image: alpine
+  image: alpine:3.16
   variables:
     MYSQL_ROOT_PASSWORD: P@ssw0rd1234
     MYSQL_DATABASE: acuparse
