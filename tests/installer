@@ -2,7 +2,7 @@
 
 ##
 # Acuparse Installation CI Test Script
-# @copyright Copyright (C) 2015-2022 Maxwell Power
+# @copyright Copyright (C) 2015-2024 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #
@@ -28,9 +28,9 @@
 set -x
 set -e
 
-TEST_READING="dateutc=2022-01-01T00:00:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=10.25&uvindex=1&lightintensity=80000&measured_light_seconds=50000&strikecount=100&interference=0&last_strike_ts=2020-01-01T00:00:00&last_strike_distance=1&humidity=10&tempf=10.5&windspeedmph=10&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=25&heatindex=50.5&feelslike=50.5&windchill=50.5&dewptf=25.5&dailyrainin=3.75&rainin=1.25"
-TEST_READING2="dateutc=2022-01-01T00:05:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=20.55&uvindex=2&lightintensity=90000&measured_light_seconds=50300&strikecount=200&interference=0&last_strike_ts=2020-01-01T00:05:00&last_strike_distance=2.5&humidity=20&tempf=20.5&windspeedmph=20&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=30&heatindex=75.5&feelslike=75.5&windchill=75.5&dewptf=75.5&dailyrainin=6.75&rainin=1.25"
-TEST_READING3="dateutc=2022-01-01T00:10:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=30.75&uvindex=3&lightintensity=90000&measured_light_seconds=50600&strikecount=300&interference=0&last_strike_ts=2020-01-01T00:10:00&last_strike_distance=3.5&humidity=30&tempf=30.5&windspeedmph=30&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=30&heatindex=75.5&feelslike=75.5&windchill=75.5&dewptf=75.5&dailyrainin=9.75&rainin=1.25"
+TEST_READING="dateutc=2023-01-01T00:00:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=10.25&uvindex=1&lightintensity=80000&measured_light_seconds=50000&strikecount=100&interference=0&last_strike_ts=2020-01-01T00:00:00&last_strike_distance=1&humidity=10&tempf=10.5&windspeedmph=10&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=25&heatindex=50.5&feelslike=50.5&windchill=50.5&dewptf=25.5&dailyrainin=3.75&rainin=1.25"
+TEST_READING2="dateutc=2023-01-01T00:05:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=20.55&uvindex=2&lightintensity=90000&measured_light_seconds=50300&strikecount=200&interference=0&last_strike_ts=2020-01-01T00:05:00&last_strike_distance=2.5&humidity=20&tempf=20.5&windspeedmph=20&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=30&heatindex=75.5&feelslike=75.5&windchill=75.5&dewptf=75.5&dailyrainin=6.75&rainin=1.25"
+TEST_READING3="dateutc=2023-01-01T00:10:00&id=0C7D0C5DC14E&mt=Atlas&sensor=00000001&sensorbattery=normal&rssi=4&hubbattery=normal&baromin=30.75&uvindex=3&lightintensity=90000&measured_light_seconds=50600&strikecount=300&interference=0&last_strike_ts=2020-01-01T00:10:00&last_strike_distance=3.5&humidity=30&tempf=30.5&windspeedmph=30&winddir=10&windgustmph=85&windgustdir=325&windspeedavgmph=30&heatindex=75.5&feelslike=75.5&windchill=75.5&dewptf=75.5&dailyrainin=9.75&rainin=1.25"
 
 function _test_full_install() {
   echo "Testing Full Install"
@@ -48,6 +48,14 @@ function _test_full_install() {
   echo "Checking Database"
   export "$(cat ~/.acuparse_db)"
   mysql -hlocalhost -uacuparse -p"$ACUPARSE_DB_PASSWORD" --batch --skip-column-names -e "SHOW DATABASES LIKE 'acuparse'" || (echo "Checking Database failed" && exit 1)
+
+  echo "Checking OpenSSL"
+  which openssl
+  openssl version
+  openssl ciphers -v
+  #openssl ciphers -v  | grep -i 'TLSv1.1' || (echo "ERROR: OpenSSL not configured" && exit 1)
+  grep SSLCipherSuite < /etc/apache2/sites-available/acuparse-ssl.conf
+  openssl s_client -connect localhost:443 -tls1_1
 
   echo "Configuring Acuparse"
   {

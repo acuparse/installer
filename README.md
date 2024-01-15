@@ -2,7 +2,7 @@
 
 See the [Acuparse Install Guide](https://docs.acuparse.com/INSTALL) for further install details.
 
-> **NOTICE:** ONLY Supports Debian/Rasbian Bullseye (11)/Buster (10) or Ubuntu Jammy (22.04)/Focal (20.04).
+> **NOTICE:** ONLY Supports Debian/Rasbian Bookworm (12)/Bullseye (11) or Ubuntu Jammy (22.04)/Focal (20.04).
 
 ## Usage
 

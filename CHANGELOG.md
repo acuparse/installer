@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+## 2.13.0
+
+### Changed
+
+- Debian Bookworm(12) Support.
+- Docker Compose Version to 2.19.1.
+
+### Removed
+
+- Debian Buster(10) Support.
+
 ## 2.12.0
 
 ### Changed

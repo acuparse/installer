@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-SCRIPT_VERSION='2.12'
+SCRIPT_VERSION='2.13.0'
 
 ##
 # Acuparse Installation Script
-# @copyright Copyright (C) 2015-2022 Maxwell Power
+# @copyright Copyright (C) 2015-2024 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #
@@ -67,16 +67,14 @@ while getopts ":db::sep::l::t::" opt; do
     IFS=
     ;;
   l)
-    set -f
-    IFS=,
     LE_SSL_ENABLED="y"
-    LE_ARRAY=("$OPTARG")
+    set -f
+    IFS=',' read -r -a LE_ARRAY <<<"$OPTARG"
     LE_FQDN=${LE_ARRAY[0]}
     LE_EMAIL=${LE_ARRAY[1]}
     LE_REDIRECT_ENABLED=${LE_ARRAY[2]}
     LE_SECURE_WWW=${LE_ARRAY[3]}
     set +f
-    IFS=,
     ;;
   t)
     TIMEZONE=${OPTARG}
@@ -137,43 +135,51 @@ function _run_apache_setup() {
 }
 
 function _install_le_cert() {
-  if [[ ("$LE_SECURE_WWW" == "y") || ("$LE_SECURE_WWW" == "Y") ]]; then
-    LE_SECURE_DOMAINS=(-d "$LE_FQDN" -d www."$LE_FQDN")
-    sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
-  else
-    LE_SECURE_DOMAINS=(-d "$LE_FQDN")
-    sed -i "s/#ServerName/ServerName ${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
+  # Check if the script is running in CI environment
+  if [ -n "$CI_COMMIT_SHA" ]; then
+    echo "Running in CI environment. Skipping certificate installation."
+    return
   fi
 
-  if [[ ("$LE_REDIRECT_ENABLED" == "y") || ("$LE_REDIRECT_ENABLED" == "Y") ]]; then
-    LE_REDIRECT="redirect"
-  else
-    LE_REDIRECT="no-redirect"
+  if [[ ("$LE_SSL_ENABLED" == "y") || ("$LE_SSL_ENABLED" == "Y") ]]; then
+    if [[ ("$LE_SECURE_WWW" == "y") || ("$LE_SECURE_WWW" == "Y") ]]; then
+      LE_SECURE_DOMAINS=(-d "$LE_FQDN" -d www."$LE_FQDN")
+      sed -i "s/#ServerName/ServerName ${LE_FQDN}\n    ServerAlias www.${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
+    else
+      LE_SECURE_DOMAINS=(-d "$LE_FQDN")
+      sed -i "s/#ServerName/ServerName ${LE_FQDN}/g" /etc/apache2/sites-available/acuparse-ssl.conf
+    fi
+
+    if [[ ("$LE_REDIRECT_ENABLED" == "y") || ("$LE_REDIRECT_ENABLED" == "Y") ]]; then
+      LE_REDIRECT="redirect"
+    else
+      LE_REDIRECT="no-redirect"
+    fi
+    if [[ ("$DIST" == "ubuntu") && ("$UBU_VERSION" == "22.04") ]]; then
+      printf "${YELLOW_TEXT}""UBUNTU Jammy (22.04) DETECTED!""${RESET_TEXT}""\n"
+      apt-get install software-properties-common python3-certbot-apache -y
+    elif [[ ("$DIST" == "ubuntu") && ("$UBU_VERSION" == "20.04") ]]; then
+      printf "${YELLOW_TEXT}""UBUNTU Focal (20.04) DETECTED! Using certbot PPA""${RESET_TEXT}""\n"
+      apt-get install software-properties-common -y
+      add-apt-repository ppa:certbot/certbot -y
+      apt-get update >/dev/null 2>&1
+      apt-get install python3-certbot-apache -y
+    elif [[ ("$DIST" == "debian") ]]; then
+      printf "${YELLOW_TEXT}""DEBIAN DETECTED! Using Python 3""${RESET_TEXT}""\n"
+      apt-get install python3-certbot-apache -y
+    else
+      apt-get install python-certbot-apache -y
+    fi
+    systemctl stop apache2 || service apache2 stop
+    if [[ "$GIT_BRANCH" != "stable" ]]; then
+      printf "Requesting cert from STAGING server\n"
+      certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}" --staging
+    else
+      printf "Requesting cert from PRODUCTION server\n"
+      certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
+    fi
+    systemctl start apache2 || service apache2 start
   fi
-  if [[ ("$DIST" == "ubuntu") && ("$UBU_VERSION" == "22.04") ]]; then
-    printf "${YELLOW_TEXT}""UBUNTU Jammy (22.04) DETECTED!""${RESET_TEXT}""\n"
-    apt-get install software-properties-common python3-certbot-apache -y
-  elif [[ ("$DIST" == "ubuntu") && ("$UBU_VERSION" == "20.04") ]]; then
-    printf "${YELLOW_TEXT}""UBUNTU Focal (20.04) DETECTED! Using certbot PPA""${RESET_TEXT}""\n"
-    apt-get install software-properties-common -y
-    add-apt-repository ppa:certbot/certbot -y
-    apt-get update >/dev/null 2>&1
-    apt-get install python3-certbot-apache -y
-  elif [[ ("$DIST" == "debian") && ("$DEB_VERSION" == "\"11\"") ]]; then
-    printf "${YELLOW_TEXT}""DEBIAN BULLSEYE DETECTED! Using Python 3""${RESET_TEXT}""\n"
-    apt-get install python3-certbot-apache -y
-  else
-    apt-get install python-certbot-apache -y
-  fi
-  systemctl stop apache2 || service apache2 stop
-  if [[ "$GIT_BRANCH" != "stable" ]]; then
-    printf "Requesting cert from STAGING server\n"
-    certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}" --staging
-  else
-    printf "Requesting cert from PRODUCTION server\n"
-    certbot -n --authenticator standalone --installer apache --agree-tos --"${LE_REDIRECT}" --email "${LE_EMAIL}" "${LE_SECURE_DOMAINS[@]}"
-  fi
-  systemctl start apache2 || service apache2 start
 }
 
 function __save_database_credentials() {
@@ -219,16 +225,36 @@ function _run_timezone_set() {
 
 function _openSSL() {
   echo "Configuring OpenSSL for TLS v1.1 support"
-  if [[ "$UBUNTU_JAMMY" == true ]]; then
-    sed -i 's/SECLEVEL=2/SECLEVEL=0/' /etc/ssl/openssl.cnf
-    sed -i 's/SECLEVEL=1/SECLEVEL=0/' /etc/apache2/sites-available/acuparse-ssl.conf
-    printf "MinProtocol = TLSv1.1\n" >>/etc/ssl/openssl.cnf
-  elif [[ "$UBUNTU_FOCAL" == true ]]; then
+  if [[ "$UBUNTU_JAMMY" == true ]] || [[ "$UBUNTU_FOCAL" == true ]]; then
     sed -i '1s/^/openssl_conf = default_conf\n/' /etc/ssl/openssl.cnf
-    printf "[ default_conf ]\nssl_conf = ssl_sect\n\n[ ssl_sect ]\nsystem_default = system_default_sect\n\n[ system_default_sect ]\nMinProtocol = TLSv1.1\nCipherString = DEFAULT@SECLEVEL=1\n" >>/etc/ssl/openssl.cnf
+    printf "[default_conf]\nssl_conf = ssl_sect\n\n[ssl_sect]\nsystem_default = system_default_sect\n\n[system_default_sect]\nMinProtocol = TLSv1.1\nCipherString = ALL@SECLEVEL=0\n" >>/etc/ssl/openssl.cnf
+  elif [[ "$DEB_VERSION" == "\"12\"" ]]; then
+    apt-get install build-essential checkinstall git zlib1g-dev -y
+    cd /tmp || exit 1
+    git clone https://github.com/openssl/openssl.git
+    cd openssl || exit 1
+    git checkout OpenSSL_1_1_1-stable
+    ./config --prefix=/usr/local/ssl --openssldir=/usr/local/ssl shared zlib
+    make
+    make install
+    ldconfig -v
+    update-alternatives --install /usr/bin/openssl openssl /usr/local/ssl/bin/openssl 100
+    mv /usr/bin/openssl /usr/bin/openssl.OLD
+    ln -sf /usr/local/ssl/bin/openssl /usr/bin/openssl
+    echo "/usr/local/ssl/lib" | tee /etc/ld.so.conf.d/openssl-1.1.conf
+    ldconfig
+    echo "export PATH=\"/usr/local/ssl/bin:\$PATH\"" | tee -a /etc/profile
+    echo "export LD_LIBRARY_PATH=\"/usr/local/ssl/lib:\$LD_LIBRARY_PATH\"" | tee -a /etc/profile
+    # shellcheck disable=SC1091
+    source /etc/profile
+    cd || exit 1
+    rm -rf /tmp/openssl
+    sed -i '1s/^/openssl_conf = default_conf\n/' /etc/ssl/openssl.cnf
+    sed -i 's/SSLCipherSuite ALL:@SECLEVEL=0/SSLCipherSuite ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ALL@SECLEVEL=0/' /etc/apache2/sites-available/acuparse-ssl.conf
+    printf "[default_conf]\nssl_conf = ssl_sect\n\n[ssl_sect]\nsystem_default = system_default_sect\n\n[system_default_sect]\nMinProtocol = TLSv1.1\nCipherString = ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ALL@SECLEVEL=0\nOptions = UnsafeLegacyServerConnect, UnsafeLegacyRenegotiation" >>/etc/ssl/openssl.cnf
   else
     sed -i 's/MinProtocol = TLSv1.2/MinProtocol = TLSv1.1/' /etc/ssl/openssl.cnf
-    sed -i 's/SECLEVEL=2/SECLEVEL=1/' /etc/ssl/openssl.cnf
+    sed -i 's/SECLEVEL=2/SECLEVEL=0/' /etc/ssl/openssl.cnf
   fi
   echo "Done: OpenSSL Config"
 }
@@ -263,7 +289,7 @@ function _cleanup() {
 
 # Begin Install
 printf "\nWelcome to the Acuparse Installation Script | Version: ""${SCRIPT_VERSION}""\n"
-printf "${YELLOW_TEXT}""WARNING:""${RESET_TEXT}"" Only run this script on a freshly installed Debian/Raspbian Bullseye (11)/Buster (10) or Ubuntu Jammy (22.04)/Focal (20.04) system!\n\n"
+printf "${YELLOW_TEXT}""WARNING:""${RESET_TEXT}"" Only run this script on a freshly installed Debian/Raspbian Bookworm (12)/Bullseye (11) or Ubuntu Jammy (22.04)/Focal (20.04) system!\n\n"
 
 # Ensure Debian/Ubuntu/Rasberian
 if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") ]]; then
@@ -279,29 +305,41 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   # Check Version
   if [[ ("$DIST" == "debian") || ("$DIST" == "raspbian") ]]; then
     if [[ "$DIST" == "raspbian" ]]; then
-      if [[ "$DEB_VERSION" == "\"10\"" ]]; then
-        PHP_VERSION="7.3"
-        printf "${GREEN_TEXT}""RASBIAN BUSTER(10) Successfully Detected!""${RESET_TEXT}""\n\n"
-      elif [[ "$DEB_VERSION" == "\"11\"" ]]; then
+      if [[ "$DEB_VERSION" == "\"11\"" ]]; then
         PHP_VERSION="7.4"
         printf "${GREEN_TEXT}""RASBIAN BULLSEYE(11) Successfully Detected!""${RESET_TEXT}""\n\n"
+        if [[ "$SILENT" == false ]]; then
+          printf "${RED_TEXT}""Press [ENTER] to continue""${RESET_TEXT}""\n"
+          read -r READY
+        fi
+      elif [[ "$DEB_VERSION" == "\"12\"" ]]; then
+        PHP_VERSION="8.2"
+        printf "${GREEN_TEXT}""RASBIAN BOOKWORM(12) Successfully Detected!""${RESET_TEXT}""\n\n"
+        if [[ "$SILENT" == false ]]; then
+          printf "${RED_TEXT}""Press [ENTER] to continue""${RESET_TEXT}""\n"
+          read -r READY
+        fi
       else
-        printf "${RED_TEXT}""ERROR: UNSUPPORTED RASBIAN! REINSTALL USING RASBIAN BULLSEYE(11)""${RESET_TEXT}""\n"
+        printf "${RED_TEXT}""ERROR: UNSUPPORTED RASBIAN! REINSTALL USING RASBIAN BOOKWORM(12)""${RESET_TEXT}""\n"
         exit 1
       fi
     else
-      if [[ "$DEB_VERSION" == "\"10\"" ]]; then
-        PHP_VERSION="7.3"
-        printf "${GREEN_TEXT}""DEBIAN BUSTER(10) Successfully Detected!""${RESET_TEXT}""\n\n"
-      elif [[ "$DEB_VERSION" == "\"11\"" ]]; then
+      if [[ "$DEB_VERSION" == "\"11\"" ]]; then
         PHP_VERSION="7.4"
         printf "${GREEN_TEXT}""DEBIAN BULLSEYE(11) Successfully Detected!""${RESET_TEXT}""\n\n"
         if [[ "$SILENT" == false ]]; then
           printf "${RED_TEXT}""Press [ENTER] to continue""${RESET_TEXT}""\n"
           read -r READY
         fi
+      elif [[ "$DEB_VERSION" == "\"12\"" ]]; then
+        PHP_VERSION="8.2"
+        printf "${GREEN_TEXT}""DEBIAN BOOKWORM(12) Successfully Detected!""${RESET_TEXT}""\n\n"
+        if [[ "$SILENT" == false ]]; then
+          printf "${RED_TEXT}""Press [ENTER] to continue""${RESET_TEXT}""\n"
+          read -r READY
+        fi
       else
-        printf "${RED_TEXT}""ERROR: UNSUPPORTED DEBIAN! REINSTALL USING DEBIAN BULLSEYE(11)""${RESET_TEXT}""\n"
+        printf "${RED_TEXT}""ERROR: UNSUPPORTED DEBIAN! REINSTALL USING DEBIAN BOOKWORM(12)""${RESET_TEXT}""\n"
         exit 1
       fi
     fi
@@ -388,7 +426,12 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
   if [[ "$SILENT" == false ]]; then sleep 1; fi
 
   ## INSTALL PHP
-  if [[ "$PHP_VERSION" == "8.1" ]]; then
+  if [[ "$PHP_VERSION" == "8.2" ]]; then
+    printf "${CYAN_TEXT}""Installing PHP 8.2.""${RESET_TEXT}""\n"
+    if [[ "$SILENT" == false ]]; then sleep 1; fi
+    apt-get install php8.2 libapache2-mod-php8.2 php8.2-mysql php8.2-gd php8.2-curl php8.2-cli php8.2-common -yqq || exit 1
+    printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP 8.2.""${RESET_TEXT}""\n"
+  elif [[ "$PHP_VERSION" == "8.1" ]]; then
     printf "${CYAN_TEXT}""Installing PHP 8.1.""${RESET_TEXT}""\n"
     if [[ "$SILENT" == false ]]; then sleep 1; fi
     apt-get install php8.1 libapache2-mod-php8.1 php8.1-mysql php8.1-gd php8.1-curl php8.1-cli php8.1-common -yqq || exit 1
@@ -398,11 +441,6 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
     if [[ "$SILENT" == false ]]; then sleep 1; fi
     apt-get install php7.4 libapache2-mod-php7.4 php7.4-mysql php7.4-gd php7.4-curl php7.4-json php7.4-cli php7.4-common -yqq || exit 1
     printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP 7.4.""${RESET_TEXT}""\n"
-  elif [[ "$PHP_VERSION" == "7.3" ]]; then
-    printf "${CYAN_TEXT}""Installing PHP 7.3.""${RESET_TEXT}""\n"
-    if [[ "$SILENT" == false ]]; then sleep 1; fi
-    apt-get install php7.3 libapache2-mod-php7.3 php7.3-mysql php7.3-gd php7.3-curl php7.3-json php7.3-cli php7.3-common -yqq || exit 1
-    printf "${UNDERLINE_GREEN_TEXT}""DONE: Installing PHP 7.3.""${RESET_TEXT}""\n"
   else
     printf "${RED_TEXT}""ERROR: PHP INSTALL FAILED! Can't determine version to install.""${RESET_TEXT}""\n"
     exit 1
@@ -482,6 +520,6 @@ if [[ ("$DIST" == "debian") || ("$DIST" == "ubuntu") || ("$DIST" == "raspbian") 
 
 # No Supported OS
 else
-  printf "${RED_TEXT}""ERROR: This script is designed to be run on a freshly installed Debian/Raspbian Bullseye (11)/Buster (10) or Ubuntu Jammy (22.04)/Focal (20.04) system""${RESET_TEXT}""\n"
+  printf "${RED_TEXT}""ERROR: This script is designed to be run on a freshly installed Debian/Raspbian Bookworm (12)/Bullseye (11) or Ubuntu Jammy (22.04)/Focal (20.04) system""${RESET_TEXT}""\n"
   exit 1
 fi

@@ -2,7 +2,7 @@
 
 ##
 # Acuparse Docker Installation Script
-# @copyright Copyright (C) 2015-2022 Maxwell Power
+# @copyright Copyright (C) 2015-2024 Maxwell Power
 # @author Maxwell Power <max@acuparse.com>
 # @license MIT
 #
@@ -26,7 +26,7 @@
 ##
 
 REPO='master'
-COMPOSE_VERSION='2.10.2'
+COMPOSE_VERSION='2.19.1'
 
 DIST=$(cat /etc/*release | grep '^ID=' | awk -F= '{ print $2 }')
 # Set Text Colours

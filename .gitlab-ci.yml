@@ -109,13 +109,17 @@ LINT:compose:
     - docker-compose -f docker/docker-compose.yml config
   dependencies: [ ]
 
-DEBIAN:buster:
-  extends: .TEMPLATE:LOCAL:install
-  image: debian:buster
-
 DEBIAN:bullseye:
   extends: .TEMPLATE:LOCAL:install
   image: debian:bullseye
+
+DEBIAN:bookworm:
+  extends: .TEMPLATE:LOCAL:install
+  before_script:
+    - apt-get update
+    - apt-get install curl jq -yq
+    - cp tests/resources/init.d/rsyslog /etc/init.d/rsyslog && chmod +x /etc/init.d/rsyslog
+  image: debian:bookworm
 
 UBUNTU:focal:
   extends: .TEMPLATE:LOCAL:install
@@ -125,7 +129,6 @@ UBUNTU:jammy:
   extends: .TEMPLATE:LOCAL:install
   before_script:
     - apt-get update
-    - apt-get dist-upgrade -yq
     - apt-get install curl jq -yq
     - cp tests/resources/init.d/rsyslog /etc/init.d/rsyslog && chmod +x /etc/init.d/rsyslog
   image: ubuntu:jammy
@@ -150,13 +153,13 @@ CONTAINER:
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
 
-DOCKER:DEBIAN:buster:
-  extends: .TEMPLATE:DOCKER:install
-  image: debian:buster
-
 DOCKER:DEBIAN:bullseye:
   extends: .TEMPLATE:DOCKER:install
   image: debian:bullseye
+
+DOCKER:DEBIAN:bookworm:
+  extends: .TEMPLATE:DOCKER:install
+  image: debian:bookworm
 
 DOCKER:UBUNTU:focal:
   extends: .TEMPLATE:DOCKER:install
